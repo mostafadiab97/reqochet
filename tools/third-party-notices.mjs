@@ -36,14 +36,16 @@ export function collectNotices(root = '.') {
     for (const dep of [...Object.keys(entry.dependencies ?? {}), ...Object.keys(entry.optionalDependencies ?? {})]) walk(resolve(key, dep))
   }
   for (const r of roots) walk(resolve('', r))
-  const unique = new Map([...seen.values()].map((p) => [`${p.name}@${p.version}`, p]))
+  // one entry per library and licence text (two versions of one library with the same licence count once)
+  const unique = new Map([...seen.values()].map((p) => [p.name, p]))
   const parts = []
   for (const p of [...unique.values()].filter((p) => existsSync(p.path)).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
     const pkg = JSON.parse(readFileSync(join(p.path, 'package.json'), 'utf8'))
     const license = typeof pkg.license === 'string' ? pkg.license : (pkg.license?.type ?? 'see the package')
     const file = existsSync(p.path) ? readdirSync(p.path).find((f) => /^(licen[cs]e|copying|notice)(\.|$)/i.test(f)) : undefined
     const text = file ? readFileSync(join(p.path, file), 'utf8').replace(/\r\n?/g, '\n').trim() : `(no licence file in the package; licence: ${license})`
-    parts.push(`${p.name} ${p.version} — ${license}\n${'-'.repeat(60)}\n${text}\n`)
+    // no version number: a Dependabot update of a library keeps the notices valid; a new library or licence does not
+    parts.push(`${p.name} — ${license}\n${'-'.repeat(60)}\n${text}\n`)
   }
   // fonts the window ships (SIL OFL 1.1 asks for the licence to travel with the font)
   for (const font of FONTS) parts.push(`${font.name} — SIL OFL 1.1\n${'-'.repeat(60)}\n${readFileSync(join(root, font.licence), 'utf8').replace(/\r\n?/g, '\n').trim()}\n`)
