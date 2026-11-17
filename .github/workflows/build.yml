@@ -1,0 +1,124 @@
+# On every push: type-check, lint (including module-boundary rules), run tests,
+# then build the Windows installer, run the acceptance run on the installed app and attach the installer
+# to the run as a downloadable artifact.
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# read by default; the job gets contents: write only for the acceptance run's scratch branch ci/acceptance-*,
+# which it deletes again. The token reaches only the steps that name it (env), never the checkout's Git config.
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    # a stuck e2e run must not hold the runner for GitHub's 6 hours
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # full history for the secrets check
+
+      - name: Privacy and secrets check (files of this repository; secrets also in its history)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node tools/check-privacy.mjs .
+          # the secrets scanner: downloaded with gh (signed in with this run's token, so no anonymous rate limit), retried;
+          # a failed download stops the step with a clear message (8 Nov 2026: curl got an answer that was not a zip)
+          for attempt in 1 2 3; do
+            rm -f "$RUNNER_TEMP"/gitleaks_*.zip
+            gh release download v8.28.0 -R gitleaks/gitleaks -p 'gitleaks_8.28.0_windows_x64.zip' -D "$RUNNER_TEMP" --clobber && unzip -tq "$RUNNER_TEMP/gitleaks_8.28.0_windows_x64.zip" && break
+            echo "gitleaks download attempt $attempt failed"; sleep 20
+          done
+          # the zip must be the published one (its SH6 from gitleaks' checksums.txt)
+          [ -f "$RUNNER_TEMP/gitleaks_8.28.0_windows_x64.zip" ] || { echo "::error::Could not download the gitleaks secrets scanner from GitHub (3 attempts). Rerun the job later."; exit 1; }
+          [ "$(sha256sum < "$RUNNER_TEMP/gitleaks_8.28.0_windows_x64.zip" | cut -d' ' -f1)" = "da6458e8864af553807de1c46a7a8eac0880bd6b99ba56288e87e86a45af884f" ] || { echo "::error::The gitleaks download does not match its published checksum."; exit 1; }
+          unzip -q -o "$RUNNER_TEMP/gitleaks_8.28.0_windows_x64.zip" -d "$RUNNER_TEMP/gitleaks" || { echo "::error::Could not download the gitleaks secrets scanner from GitHub (3 attempts). Rerun the job later."; exit 1; }
+          "$RUNNER_TEMP/gitleaks/gitleaks.exe" git . --no-banner --redact
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install (retried)
+        shell: bash
+        # Electron comes through gh, signed in with this run's token, checksum checked (tools/ci-electron.mjs):
+        # 8 Nov 2026 GitHub answered the anonymous Electron download with 504 for hours, signed-in downloads worked
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+        # --ignore-scripts: no library runs code at install time, so none can change files that later steps run with
+        # the token; the only scripts were esbuild's (optional) and electron-winstaller's (unused)
+        run: for attempt in 1 2 3; do npm ci --ignore-scripts && exit 0; echo "npm ci attempt $attempt failed; waiting"; sleep 60; done; exit 1
+      # the token only here, not while libraries' install scripts run
+      - name: Electron (signed-in download, checksum from the locked package)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node tools/ci-electron.mjs
+          node -e "require('electron')"
+      - run: npm run check
+      - name: Performance tests (10,000 items; 50,000 runs for releases)
+        run: npm run test:perf
+      - name: End-to-end scenarios (drive the real app)
+        run: |
+          npm run build
+          npm run test:e2e
+      - name: Large repository smoke test (10,000 generated items in the real app)
+        shell: bash
+        run: |
+          repo="$RUNNER_TEMP/scenario-10k"
+          git init -q "$repo"
+          npm run gen:scenario -- "$repo" 10000
+          npm run measure:ui -- "$repo"
+      - name: Upload end-to-end screenshots
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: e2e-screenshots
+          path: e2e/out/*.png
+          if-no-files-found: ignore
+      - name: Build installer
+        run: npx electron-builder --win --publish never --config.electronDist=node_modules/electron/dist --config.publish.owner=${{ github.repository_owner }} --config.publish.repo=${{ github.event.repository.name }}
+      - name: Acceptance run on the installed app
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          prev=""
+          # the real push only for pushes to main and manual runs — never for pull requests (security check 3 Nov)
+          PUSH=""; if [ "${{ github.event_name }}" != "pull_request" ]; then PUSH=1; fi
+          if gh release download --pattern "*-Setup-*.exe" --dir "$RUNNER_TEMP/previous" 2>/dev/null; then
+            prev="$(ls "$RUNNER_TEMP"/previous/*-Setup-*.exe | head -1)"
+          fi
+          # the example project (examples/), as a pre-0.17 project with an "items" folder, so the acceptance run can rename it
+          cp -r examples/smart-home-climate "$RUNNER_TEMP/sandbox"
+          mv "$RUNNER_TEMP/sandbox/requirements/Smart Home Climate" "$RUNNER_TEMP/sandbox/requirements/items"
+          git -C "$RUNNER_TEMP/sandbox" init -q -b main
+          git -C "$RUNNER_TEMP/sandbox" -c user.name="acceptance run" -c user.email="acceptance@example.invalid" add -A
+          git -C "$RUNNER_TEMP/sandbox" -c user.name="acceptance run" -c user.email="acceptance@example.invalid" commit -q -m "Example project"
+          node e2e/acceptance.mjs \
+            --installer "$(ls dist/*-Setup-*.exe | head -1)" --feed dist \
+            ${prev:+--previous "$prev"} \
+            --sandbox "$RUNNER_TEMP/sandbox" \
+            ${PUSH:+--push-url "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"} \
+            --branch "ci/acceptance-${{ github.run_id }}-${{ github.run_attempt }}"
+
+      # not for pull requests: an unsigned installer from someone's change must not look like an official build (PS-08)
+      - if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: reqochet-Windows-Installer
+          path: dist/*.exe
+          if-no-files-found: error
