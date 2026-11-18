@@ -17,7 +17,7 @@ export interface Problem {
   id?: string
   /** What the row is about when it is not an item (a file path, a schema key). */
   subject?: string
-  /** ReqMan can fix it with one click. */
+  /** reqochet can fix it with one click. */
   fix?: 'file-name' | 'copy-id'
 }
 

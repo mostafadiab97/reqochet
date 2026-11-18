@@ -67,7 +67,7 @@ describe('Excel import into a repository (M7)', { timeout: 120_000 }, () => {
     expect(ws.query({ document: 'Imported' }).total).toBe(59)
   })
 
-  it('imports again: one changed cell = one update; "Update the Excel file" writes ReqMan edits back', async () => {
+  it('imports again: one changed cell = one update; "Update the Excel file" writes reqochet edits back', async () => {
     const { ws, base } = await workspace()
     const root = join(base, 'repo')
     await ws.createProject(root)
@@ -75,7 +75,7 @@ describe('Excel import into a repository (M7)', { timeout: 120_000 }, () => {
     await ws.runImport(rows, settings, source)
     const edited = rows.map((r) => (r[0] === 'SYS-003' ? r.map((c, i) => (i === 4 ? 'Review' : c)) : r))
     expect((await ws.previewImport(edited, settings)).counts).toEqual({ create: 0, update: 1, unchanged: 58, skip: 0 })
-    // an edit in ReqMan and a new item, then "Update the Excel file"
+    // an edit in reqochet and a new item, then "Update the Excel file"
     const id = ws.query({ text: 'Remote control', limit: 5 }).items.find((x) => x.title === 'Remote control')!.id
     const d = await ws.getItem(id)
     expect((await ws.saveItem({ ...d!.item, fields: { ...d!.item.fields, status: 'Obsolete' } }, d!.revision)).ok).toBe(true)

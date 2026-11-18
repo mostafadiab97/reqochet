@@ -8,7 +8,7 @@ export { problemsOf, type Problem } from './problemList'
 /**
  * The problem list under the table (opened from the status bar): a header with a close button, then the problems
  * grouped by kind with a count — each row with a severity mark, the item ID and the message, and a fix button where
- * ReqMan can fix it.
+ * reqochet can fix it.
  */
 export function ProblemList({
   problems,

@@ -1,4 +1,4 @@
-// Checks the libraries ReqMan uses: known security problems (npm audit) and available updates (npm outdated).
+// Checks the libraries reqochet uses: known security problems (npm audit) and available updates (npm outdated).
 // Runs before every build (npm run build) and in CI. It only WARNS — it never stops a build (
 // 28 Oct 2026). Without network it says so and carries on.
 //   npm run check:deps

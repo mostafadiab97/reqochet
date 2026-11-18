@@ -19,6 +19,6 @@ describe('user guide pages', () => {
     const links = [...text.matchAll(/\]\(#([^)]+)\)/g)].map((m) => m[1] ?? '')
     expect(links.length).toBeGreaterThan(10)
     for (const l of links) expect(ids.has(l), `link #${l}`).toBe(true)
-    expect(slug('16. What ReqMan can do — specification')).toBe('16-what-reqman-can-do--specification')
+    expect(slug('16. What reqochet can do — specification')).toBe('16-what-reqochet-can-do--specification')
   })
 })

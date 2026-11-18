@@ -28,9 +28,9 @@ const items = (): { item: IndexedItem; depth: number }[] => {
   return [{ item: ch, depth: 0 }, { item: req, depth: 1 }, { item: tc, depth: 0 }]
 }
 
-/** What 0.15.x (ReqMan) wrote: same file, old identifiers and attribute names. */
-const asReqMan = (xml: string): string =>
-  xml.replaceAll('reqochet-', 'reqman-').replaceAll('reqochet.', 'ReqMan.').replaceAll('<REQ-IF-TOOL-ID>reqochet<', '<REQ-IF-TOOL-ID>ReqMan<').replaceAll('<SOURCE-TOOL-ID>reqochet<', '<SOURCE-TOOL-ID>ReqMan<')
+/** What 0.15.x (reqochet) wrote: same file, old identifiers and attribute names. */
+const asreqochet = (xml: string): string =>
+  xml.replaceAll('reqochet-', 'reqman-').replaceAll('reqochet.', 'reqochet.').replaceAll('<REQ-IF-TOOL-ID>reqochet<', '<REQ-IF-TOOL-ID>reqochet<').replaceAll('<SOURCE-TOOL-ID>reqochet<', '<SOURCE-TOOL-ID>reqochet<')
 
 const planOf = (rows: string[][]) => {
   const [headers, ...data] = rows as [string[], ...string[][]]
@@ -53,10 +53,10 @@ describe('ReqIF across the rename', () => {
     expect(xml.toLowerCase()).not.toContain('reqman')
   })
 
-  it('a ReqMan 0.15 file imports exactly like the same file written by reqochet', () => {
+  it('a reqochet 0.15 file imports exactly like the same file written by reqochet', () => {
     const xml = writeReqif(schema, items(), 'T')
     const neu = planOf(readReqif(xml)[0]!.rows)
-    const old = planOf(readReqif(asReqMan(xml))[0]!.rows)
+    const old = planOf(readReqif(asreqochet(xml))[0]!.rows)
     expect(old.problems).toEqual([])
     expect(comparable(old)).toEqual(comparable(neu))
     expect(old.items.find((x) => x.item.id === 'REQ-BBBBBBB')?.item.text).toBe('The system **shall** measure.\n\n- a\n- b')
@@ -65,8 +65,8 @@ describe('ReqIF across the rename', () => {
   it('header case and a mix of old and new names are read the same way', () => {
     for (const headers of [
       ['ReqIF.ForeignID', 'ReqIF.Name', 'ReqIF.Text', 'REQMAN.TYPE', 'reqman.number', 'Reqman.Markdown'],
-      ['ReqIF.ForeignID', 'ReqIF.Name', 'ReqIF.Text', 'reqochet.Type', 'ReqMan.Number', 'ReqMan.Markdown'],
-      ['ReqIF.ForeignID', 'ReqIF.Name', 'ReqIF.Text', 'ReqMan.Type', 'reqochet.Number', 'Reqochet.Markdown']
+      ['ReqIF.ForeignID', 'ReqIF.Name', 'ReqIF.Text', 'reqochet.Type', 'reqochet.Number', 'reqochet.Markdown'],
+      ['ReqIF.ForeignID', 'ReqIF.Name', 'ReqIF.Text', 'reqochet.Type', 'reqochet.Number', 'Reqochet.Markdown']
     ]) {
       const m = guessMapping(headers, schema)
       expect(m[3], headers.join()).toBe('type')
@@ -80,7 +80,7 @@ describe('ReqIF across the rename', () => {
     const dir = join(root, 'tests', 'fixtures', 'reqif-schema')
     const xsd = readdirSync(dir).filter((f) => f.endsWith('.xsd'))
     const xml = writeReqif(schema, items(), 'Title & "more"')
-    for (const [name, contents] of [['new.reqif', xml], ['old.reqif', asReqMan(xml)]] as const) {
+    for (const [name, contents] of [['new.reqif', xml], ['old.reqif', asreqochet(xml)]] as const) {
       const r = await validateXML({
         xml: [{ fileName: name, contents }],
         schema: [{ fileName: 'reqif.xsd', contents: readFileSync(join(dir, 'reqif.xsd'), 'utf8') }],
@@ -105,7 +105,7 @@ describe('Excel across the rename', () => {
     const sheet = book[0]!
     expect(sheet.rows[0]).toEqual(['ID', 'Title', 'Type'])
     expect(sheet.rows[1]).toEqual(['REQ-AAAAAAA', 'Á & <b>', 'System requirement'])
-    expect(Buffer.from(bytes).toString('latin1')).not.toMatch(/ReqMan/)
+    expect(Buffer.from(bytes).toString('latin1')).not.toMatch(/reqochet/)
   })
 })
 
@@ -157,7 +157,7 @@ describe('theme across the rename', () => {
 describe('versions list after the rename', () => {
   const rel = (tag: string, exe: string) => ({
     tag_name: tag, published_at: '2026-11-04T08:00:00Z', draft: false, prerelease: false,
-    assets: [{ name: exe, browser_download_url: `https://github.com/o/r/releases/download/${tag}/${exe}` }, { name: `${exe}.blockmap`, browser_download_url: `https://github.com/o/r/releases/download/${tag}/${exe}.blockmap` }]
+    assets: [{ name: exe, browser_download_url: `https://github.com/o/r/releases/download/${tag}/${exe}` }, { name: `${exe}.blockmap`, browser_download_url: `https://github.com/o/r/releases/download/${tag}/${exe}.blockmap` }, { name: 'latest.yml', browser_download_url: `https://github.com/o/r/releases/download/${tag}/latest.yml` }]
   })
   it('reads reqochet-dev installers and old ReqMan installers; only 0.16.0 and later can be gone back to', () => {
     expect(OLDEST_REVERT_TARGET).toBe('0.16.0')

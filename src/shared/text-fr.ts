@@ -1368,6 +1368,8 @@ export const fr: Texts = {
     updateCheckFailed: 'Impossible de rechercher des mises à jour (hors ligne ou GitHub inaccessible).',
     onlyInstalled: 'Seule l’application Windows installée peut changer de version.',
     notAVersion: (version: string) => `La version ${version} n’en est pas une à laquelle vous pouvez revenir.`,
+    installerNotVerified: (version: string) => `La version ${version} n’a pas été installée : son programme d’installation ne correspond pas à la somme de contrôle publiée avec elle. Rien n’a été modifié.`,
+    installerNotDownloaded: (version: string) => `La version ${version} n’a pas été installée : son programme d’installation ou sa somme de contrôle n’a pas pu être téléchargé. Vérifiez la connexion et réessayez. Rien n’a été modifié.`,
     position: 'Position'
   },
   writing: {

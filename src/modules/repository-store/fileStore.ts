@@ -403,7 +403,7 @@ export function createFileRepositoryStore(defaultSchemaFile: string): Repository
             )
           }
         }
-        // Never overwrite a file a person edited into a state ReqMan cannot read: their text would be lost.
+        // Never overwrite a file a person edited into a state reqochet cannot read: their text would be lost.
         if (current && !current.ok) throw new Error(`${basename(file)} cannot be read (${current.error}); fix it before saving over it.`)
         await mkdir(dirname(file), { recursive: true })
         const content = serializeItem(item, schema)

@@ -72,7 +72,7 @@ describe('project folder name', () => {
 
 describe('our own ReqIF exports, before and after the rename', () => {
   const schema = parseSchema(readFileSync(join(__dirname, '..', 'config', 'default-schema.yaml'), 'utf8')).schema
-  it('reads "reqochet.Type / .Markdown" and the old "ReqMan.Type / .Markdown" the same way', () => {
+  it('reads "reqochet.Type / .Markdown" and the old "reqochet.Type / .Markdown" the same way', () => {
     for (const p of ['reqochet', 'ReqMan']) {
       const headers = ['ReqIF.ForeignID', 'ReqIF.Name', 'ReqIF.Text', `${p}.Type`, `${p}.Number`, `${p}.Markdown`]
       const m = guessMapping(headers, schema)

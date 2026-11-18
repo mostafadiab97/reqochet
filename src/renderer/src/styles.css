@@ -1,5 +1,5 @@
 /*
-  ReqMan UI styles.
+  reqochet UI styles.
   RULE (NFR-11): no literal colours, fonts or radii here — only var(--rm-...) tokens from config/theme.json.
   A test (tests/theme-tokens.test.ts) fails the build if a hex/rgb colour appears in UI code.
 */

@@ -23,5 +23,12 @@ Only the newest version gets fixes; the app updates itself.
 ## Known limits
 
 - **The installer and its updates are not code-signed** (signing needs a paid certificate). Windows SmartScreen may
-  warn on the first install. Each update is checked against the SHA-512 checksum published with its GitHub release,
-  and every release is approved by the maintainer before it is built.
+  warn on the first install.
+- **What is checked before an installer runs:** every update — the automatic one and "go back to an earlier version"
+  — is downloaded only from this repository's releases and checked against the SHA-512 published with that release
+  (`latest.yml`); a download that does not match is not run. That checksum comes from the same release, so it protects
+  against damaged or swapped downloads, not against someone who controls the release repository: that is why every
+  release needs the maintainer's approval before it is built, `main` cannot be force-pushed or deleted, and the
+  maintainer's GitHub account must use two-factor sign-in.
+- **Inline styles are allowed in the window** (`style-src 'unsafe-inline'` in the content security policy): the
+  table's virtual scrolling positions its rows with inline styles. Scripts may come only from the app itself.

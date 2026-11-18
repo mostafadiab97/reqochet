@@ -109,13 +109,13 @@ describe('ReqIF', () => {
     expect(p.problems).toEqual([])
     const byTitle = new Map(p.items.map((x) => [x.item.title, x.item]))
     const r = byTitle.get('Accuracy')!
-    expect(p.items.map((x) => x.item.id)).toEqual([ch.id, req.id, tc.id]) // ReqMan IDs survive
+    expect(p.items.map((x) => x.item.id)).toEqual([ch.id, req.id, tc.id]) // reqochet IDs survive
     expect(byTitle.get('Chapter <1> & "more"')!.type).toBe('information')
     expect(r).toMatchObject({ parent: ch.id, type: 'system-requirement', text: 'Line one\nline two\n\n| a | b |\n| --- | --- |\n\n```\ncode\n```', fields: { status: 'Approved', tags: ['safety', 'ux'], owner: 'A. Hassan' } })
     expect(byTitle.get('Check')!.links).toEqual([{ type: 'verifies', target: req.id }])
   })
 
-  it('every file ReqMan writes is valid against the official ReqIF schema (what DOORS and Jama check first)', async () => {
+  it('every file reqochet writes is valid against the official ReqIF schema (what DOORS and Jama check first)', async () => {
     const dir = join(__dirname, 'fixtures', 'reqif-schema')
     const xsd = readdirSync(dir).filter((f) => f.endsWith('.xsd'))
     const it = (id: string, type: string, title: string, extra: Partial<IndexedItem> = {}): IndexedItem => ({

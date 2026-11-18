@@ -1367,6 +1367,8 @@ export const es: Texts = {
     updateCheckFailed: 'No se pudo buscar actualizaciones (sin conexión o GitHub no disponible).',
     onlyInstalled: 'Solo la aplicación de Windows instalada puede cambiar su versión.',
     notAVersion: (version: string) => `La versión ${version} no es una a la que pueda volver.`,
+    installerNotVerified: (version: string) => `La versión ${version} no se instaló: su instalador no coincide con la suma de comprobación publicada con ella. No se ha cambiado nada.`,
+    installerNotDownloaded: (version: string) => `La versión ${version} no se instaló: no se pudo descargar su instalador o su suma de comprobación. Compruebe la conexión e inténtelo de nuevo. No se ha cambiado nada.`,
     position: 'Posición'
   },
   writing: {

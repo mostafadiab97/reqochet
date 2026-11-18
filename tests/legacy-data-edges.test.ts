@@ -140,12 +140,12 @@ describe('legacy settings move — touches nothing but the two folders', () => {
   it('neighbours in %APPDATA% with similar names are left alone', async () => {
     const { root, old, neu } = await appData()
     await mkdir(neu, { recursive: true })
-    for (const n of ['ReqMan-backup', 'ReqMan2', 'reqochet', 'Code']) {
+    for (const n of ['reqochet-backup', 'reqochet2', 'reqochet', 'Code']) {
       await mkdir(join(root, n))
       await writeFile(join(root, n, 'keep.txt'), n)
     }
     await moveLegacyUserData(old, neu, quiet)
-    for (const n of ['ReqMan-backup', 'ReqMan2', 'reqochet', 'Code']) expect(await readFile(join(root, n, 'keep.txt'), 'utf8')).toBe(n)
+    for (const n of ['reqochet-backup', 'reqochet2', 'reqochet', 'Code']) expect(await readFile(join(root, n, 'keep.txt'), 'utf8')).toBe(n)
   })
 
   it('a link inside the old folder pointing elsewhere: the target stays untouched after the old folder is removed', async () => {

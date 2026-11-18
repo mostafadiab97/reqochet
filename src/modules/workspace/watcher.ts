@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { isDocumentName } from '../repository-store'
 
 /**
- * Notices which files in the requirements folder changed (by ReqMan, Git or an editor) so that a refresh
+ * Notices which files in the requirements folder changed (by reqochet, Git or an editor) so that a refresh
  * re-reads only those instead of checking every file. If the operating system cannot watch the
  * folder, or reports a change without a file name, the next refresh simply checks everything (`all`).
  *

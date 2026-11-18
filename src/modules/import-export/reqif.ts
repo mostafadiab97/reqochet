@@ -239,9 +239,9 @@ export interface ReqifItem {
 const xmlId = (s: string): string => (/^[A-Za-z_][\w.-]*$/.test(s) ? s : `_${s.replace(/[^\w.-]/g, '_')}`)
 
 /**
- * The items as one ReqIF specification: ReqIF.ForeignID (the ReqMan ID), ReqIF.Name (title), ReqIF.Text (XHTML),
+ * The items as one ReqIF specification: ReqIF.ForeignID (the reqochet ID), ReqIF.Name (title), ReqIF.Text (XHTML),
  * the outline number and every field; enumeration fields as ReqIF enumerations; links as relations of their
- * type (source → target, as stored in ReqMan). Items whose parent is not exported hang at the top.
+ * type (source → target, as stored in reqochet). Items whose parent is not exported hang at the top.
  */
 export function writeReqif(schema: Schema, items: ReqifItem[], title: string, now = new Date()): string {
   const time = now.toISOString()
@@ -274,7 +274,7 @@ export function writeReqif(schema: Schema, items: ReqifItem[], title: string, no
     { id: 'reqochet-ad-text', name: 'ReqIF.Text', kind: 'xhtml' },
     { id: 'reqochet-ad-type', name: 'reqochet.Type', kind: 'string' },
     { id: 'reqochet-ad-number', name: 'reqochet.Number', kind: 'string' },
-    // the text exactly as ReqMan stores it (Markdown), so a ReqIF round trip through ReqMan loses nothing
+    // the text exactly as reqochet stores it (Markdown), so a ReqIF round trip through reqochet loses nothing
     { id: 'reqochet-ad-markdown', name: 'reqochet.Markdown', kind: 'string' },
     // a source ID that is not a valid XML identifier ("123", "DOORS 1") is changed for IDENTIFIER; its true value
     // travels here, so the re-import finds the item again instead of creating a duplicate

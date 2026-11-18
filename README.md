@@ -46,7 +46,8 @@ Licence: PolyForm Shield 1.0.0 (`LICENSE.md`) — free to use for everyone, comp
 Requires Node.js 22 and Git (Windows set-up, also without admin rights: `docs/DEVELOPING.md`).
 
 ```
-npm ci
+npm ci --ignore-scripts                 # no library runs code while installing (as on GitHub)
+node node_modules/electron/install.js   # Electron's own download of its program (for npm run dev and the tests)
 npm run dev        # run the app with live reload
 npm run check      # type-check + lint (incl. module-boundary rules) + unit tests
 npm run test:perf  # performance tests with 10,000 items

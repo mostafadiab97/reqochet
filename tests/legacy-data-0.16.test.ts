@@ -39,7 +39,7 @@ describe('moving settings from ReqMan (0.16)', () => {
     expect(await readFile(join(neu, 'Local Storage', 'leveldb', '000003.log'), 'utf8')).toBe('prefs')
     const names = await readdir(neu)
     expect(names).not.toContain('cache') // rebuilt on first opening
-    expect(names).not.toContain('update-hold.json') // a pause for an old ReqMan version means nothing to the new app
+    expect(names).not.toContain('update-hold.json') // a pause for an old reqochet version means nothing to the new app
     expect(names).toContain('moved-from-reqman.txt')
   })
 
@@ -51,7 +51,7 @@ describe('moving settings from ReqMan (0.16)', () => {
     expect(await readFile(join(neu, 'theme.json'), 'utf8')).toBe('{"mine":true}')
     expect(existsSync(join(neu, 'recent-repositories.json'))).toBe(true)
     expect(existsSync(old)).toBe(false)
-    await mkdir(old, { recursive: true }) // e.g. an old ReqMan still installed writes it again
+    await mkdir(old, { recursive: true }) // e.g. an old reqochet still installed writes it again
     expect((await moveLegacyUserData(old, neu, log))?.copied).toEqual([])
     expect(existsSync(old)).toBe(false)
   })

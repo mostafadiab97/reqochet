@@ -81,7 +81,7 @@ describe('0.18.0 — copied files and discarded documents', () => {
 
 import { newerRelease } from '../src/modules/updater'
 describe('0.18.0 — update check through the API when the releases feed fails', () => {
-  const r = (version: string) => ({ version, date: '', installerUrl: `https://github.com/o/r/releases/download/v${version}/x-Setup-${version}.exe` })
+  const r = (version: string) => ({ version, date: '', installerUrl: `https://github.com/o/r/releases/download/v${version}/x-Setup-${version}.exe`, installerName: `x-Setup-${version}.exe`, checksumsUrl: `https://github.com/o/r/releases/download/v${version}/latest.yml` })
   it('picks the newest release only when it is newer than the running version', () => {
     expect(newerRelease([r('0.17.1'), r('0.18.0'), r('0.17.2')], '0.17.2')?.version).toBe('0.18.0')
     expect(newerRelease([r('0.17.1'), r('0.17.2')], '0.17.2')).toBeNull()

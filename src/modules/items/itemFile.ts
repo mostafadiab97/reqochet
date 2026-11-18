@@ -104,12 +104,12 @@ export function parseItemFile(content: string, schemaFieldIds: ReadonlySet<strin
   if (header.title !== null && typeof header.title === 'object') item.extra['title'] = header.title
   if (typeof header.parent === 'string' && header.parent.trim()) item.parent = header.parent.trim()
   else if (typeof header.parent === 'number') item.parent = String(header.parent)
-  // a parent ReqMan cannot read (a list, a mapping) is kept as it was, never dropped
+  // a parent reqochet cannot read (a list, a mapping) is kept as it was, never dropped
   else if (header.parent !== undefined && header.parent !== null) item.extra['parent'] = header.parent
   // a whole number keyOfNumber can encode becomes a key; huge, negative or fractional ones are kept as they were
   if (typeof header.order === 'number' && Number.isSafeInteger(header.order) && header.order >= 0) item.order = keyOfNumber(header.order)
   else if (typeof header.order === 'string' && isOrderKey(header.order.trim())) item.order = header.order.trim()
-  // an order value ReqMan cannot read is kept as it was (never lost), but gives no position
+  // an order value reqochet cannot read is kept as it was (never lost), but gives no position
   else if (header.order !== undefined && header.order !== null) item.extra['order'] = header.order
   return { ok: true, item }
 }

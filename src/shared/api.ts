@@ -82,7 +82,7 @@ export interface DataSelfTestResult {
 // ---------- workspace (an opened requirements repository)
 
 export interface FolderCheck {
-  /** The folder ReqMan will use: the top of the Git repository if the chosen folder is inside one. */
+  /** The folder reqochet will use: the top of the Git repository if the chosen folder is inside one. */
   root: string
   isGitRepository: boolean
   /** 'ready' = has a requirements folder; 'not-initialized' = can create one; 'missing' = folder not found. */
@@ -242,7 +242,7 @@ export interface GitState {
   /** The last commit can be taken back: it is not on the remote yet (and is not the first commit). */
   canUndoCommit: boolean
   lastCommitMessage: string | null
-  /** The repository is in the middle of a merge with conflicts (started outside ReqMan). */
+  /** The repository is in the middle of a merge with conflicts (started outside reqochet). */
   mergeInProgress: boolean
   /** Baselines made on this PC that go to the remote with the next Push. */
   pendingBaselines?: number
@@ -536,7 +536,7 @@ export interface ImportSettings {
   sheet: string
   /** 0-based row of the column names. */
   headerRow: number
-  /** One target per column; leave out to let ReqMan guess from the column names. */
+  /** One target per column; leave out to let reqochet guess from the column names. */
   mapping?: ImportTarget[]
   /** Type of rows without a (known) type. */
   defaultType: string
@@ -639,11 +639,11 @@ export interface ReqochetApi {
   saveUserTheme(user: ThemeOverrides, revision: string): Promise<LoadedTheme>
   getUpdateStatus(): Promise<UpdateStatus>
   checkForUpdates(): Promise<void>
-  /** Restarts ReqMan to install a downloaded update. */
+  /** Restarts reqochet to install a downloaded update. */
   installUpdate(): Promise<void>
   /** Published versions one can go back to (older than this one, from GitHub Releases) — 0.14.1. */
   listEarlierVersions(): Promise<{ ok: true; versions: { version: string; date: string }[] } | { ok: false; message: string }>
-  /** Downloads that version's installer, pauses automatic updates and installs it (ReqMan closes and reopens). */
+  /** Downloads that version's installer, pauses automatic updates and installs it (reqochet closes and reopens). */
   installEarlierVersion(version: string): Promise<{ ok: false; message: string; canceled?: boolean } | { ok: true }>
   /** Ends the pause after going back: automatic updates run again. */
   resumeUpdates(): Promise<void>
@@ -659,7 +659,7 @@ export interface ReqochetApi {
   openRepository(root: string): Promise<RepoInfo>
   closeRepository(): Promise<void>
   /**
-   * Re-reads files changed on disk (by ReqMan, a Git pull or a hand edit) — only the changed ones when the
+   * Re-reads files changed on disk (by reqochet, a Git pull or a hand edit) — only the changed ones when the
    * folder can be watched. `focus`: the window got focus again, so Git settings are re-read too.
    */
   refreshRepository(focus?: boolean): Promise<RepoInfo>

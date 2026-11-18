@@ -149,7 +149,7 @@ describe('Pull with decisions per requirement (two PCs)', { timeout: 180_000 }, 
     await edit(a.ws, sys, (i) => (i.title = 'Shared requirement (Alice)'))
     await a.ws.commit('Alice: status and title')
     await a.ws.push()
-    // Bob changes the text: Git sees neighbouring lines and would stop; ReqMan combines the parts
+    // Bob changes the text: Git sees neighbouring lines and would stop; reqochet combines the parts
     await edit(b.ws, sys, (i) => (i.text = 'Bob text'))
     await edit(b.ws, sys, (i) => (i.fields['priority'] = 'High'))
     await b.ws.commit('Bob: text')
@@ -218,7 +218,7 @@ describe('Pull with decisions per requirement (two PCs)', { timeout: 180_000 }, 
     expect(q?.parts.map((p) => p.key)).toEqual(expect.arrayContaining(['title']))
   })
 
-  it('finds "the last pull" after a git pull --rebase outside ReqMan', async () => {
+  it('finds "the last pull" after a git pull --rebase outside reqochet', async () => {
     const { a, b, sys, tc } = await twoPcs()
     await edit(a.ws, sys, (i) => (i.text = 'Alice'))
     await a.ws.commit('Alice')

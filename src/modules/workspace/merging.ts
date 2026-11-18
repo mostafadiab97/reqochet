@@ -5,7 +5,7 @@
 //  - "Pull from branch" brings any visible branch, local or on the remote, into the current one (M8-6).
 //  - An item created on both sides with the same ID is repaired automatically: this branch's item
 //    gets a new ID and the links/parents this branch added to it follow.
-//  - Merging branches into each other on GitHub stays on GitHub (pull requests, code owners — M8-2); ReqMan only
+//  - Merging branches into each other on GitHub stays on GitHub (pull requests, code owners — M8-2); reqochet only
 //    shows what a branch would bring in (branchRange → the Changes view).
 //  - Switching branches with uncommitted changes: commit first (the window), discard, or take them along when
 //    the other branch has the same version of every changed file (M8-1).
@@ -32,7 +32,7 @@ export interface MergingDeps {
 
 type Resolved = { path: string; content: string | null }
 
-/** One file both sides changed in ways Git could not combine, as ReqMan sees it. */
+/** One file both sides changed in ways Git could not combine, as reqochet sees it. */
 type Entry =
   | { kind: 'combined'; path: string; content: string | null; change: ItemChange }
   | { kind: 'question'; path: string; question: MergeQuestion; resolve: (answers: Record<string, MergeAnswers[string][string]>) => Resolved[] | string | null }
@@ -149,7 +149,7 @@ export function createMerging(deps: MergingDeps) {
         })
         continue
       }
-      // not an item (schema, settings) or a file ReqMan cannot read: the whole file, mine or theirs
+      // not an item (schema, settings) or a file reqochet cannot read: the whole file, mine or theirs
       const part: MergePart = { key: 'file', label: T.merge.file, base: '', mine: mt === null ? T.merge.deleted : T.merge.fileMine, theirs: tt === null ? T.merge.deleted : T.merge.fileTheirs, editable: false }
       entries.push({
         kind: 'question',

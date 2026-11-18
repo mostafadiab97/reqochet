@@ -92,7 +92,7 @@ describe('Excel import plan (M7)', () => {
     expect(outlineOf('Intro')).toBeNull()
   })
 
-  it('reads its own export back: links in "<type> <ID>" form, ReqMan IDs kept', async () => {
+  it('reads its own export back: links in "<type> <ID>" form, reqochet IDs kept', async () => {
     const a: Item = { id: 'REQ-AAAAAAA', type: 'system-requirement', title: 'A', fields: {}, links: [], text: 't', extra: {} }
     const b: Item = { id: 'REQ-BBBBBBB', type: 'test-case', title: 'B', fields: {}, links: [{ type: 'verifies', target: a.id, confirmed: 'x' }], text: '', extra: {} }
     const xlsx = await writeXlsx([{ name: 'Requirements', header: ['ID', 'Title', 'Type', 'Links'], rows: [[a.id, 'A changed', 'System Requirement', ''], [b.id, 'B', 'Test Case', `verifies ${a.id}`]] }])

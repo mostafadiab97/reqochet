@@ -341,7 +341,7 @@ await scenario('E2E journey', async (ctx) => {
   await win.getByRole('button', { name: 'Keep editing' }).click()
   await win.getByRole('button', { name: 'Discard changes' }).first().click()
 
-  // someone edits a file outside ReqMan (e.g. git pull); a window refocus picks it up
+  // someone edits a file outside reqochet (e.g. git pull); a window refocus picks it up
   const tcFile = fileOfType(itemsDir, 'test-case')
   const tcPath = join(repo, 'requirements', 'Specification', tcFile)
   writeFileSync(tcPath, readFileSync(tcPath, 'utf8').replace('Verify accuracy at 20 °C', 'Verify accuracy at 25 °C'))

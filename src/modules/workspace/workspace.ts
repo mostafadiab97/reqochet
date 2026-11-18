@@ -514,7 +514,7 @@ export function createWorkspace(deps: WorkspaceDeps): WorkspaceService {
   /** Brings the index up to date. With a working folder watch only the files it saw change are re-read. */
   async function refresh(focus: boolean): Promise<RepoInfo> {
     const s = need()
-    if (focus) gitOps.invalidate() // remotes or identity may have changed outside ReqMan
+    if (focus) gitOps.invalidate() // remotes or identity may have changed outside reqochet
     // the operating system reports file changes a few milliseconds after they happen: let them arrive
     if (s.watch) await new Promise((r) => setTimeout(r, SETTLE_MS))
     const seen = s.watch?.take()

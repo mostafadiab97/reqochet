@@ -1,6 +1,6 @@
 // Fixes of the project review, seen from the window (0.8.0): an item in a renamed file opens and its file name
 // can be fixed with one click; "Expand all" opens every level and loads them as they scroll into view
-//; a second start brings the open window forward instead of starting a second ReqMan; and the
+//; a second start brings the open window forward instead of starting a second reqochet; and the
 // release self-test runs from Settings & diagnostics.
 import { spawn } from 'node:child_process'
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
@@ -101,7 +101,7 @@ await scenario('E2E fixes', async (ctx) => {
       resolve(c)
     })
   })
-  check(code === 0, `the second ReqMan quits at once (exit ${code})`)
+  check(code === 0, `the second reqochet quits at once (exit ${code})`)
   check((await win.locator('.table__row[data-id]').count()) === 21, 'the first window keeps working')
 
   console.log('Changes view — one place for changes and comparisons, split difference')

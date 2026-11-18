@@ -1369,6 +1369,8 @@ export const de: Texts = {
     updateCheckFailed: 'Die Suche nach Updates war nicht möglich (offline oder GitHub nicht erreichbar).',
     onlyInstalled: 'Nur die installierte Windows-App kann ihre Version ändern.',
     notAVersion: (version: string) => `Version ${version} ist keine, zu der Sie zurückgehen können.`,
+    installerNotVerified: (version: string) => `Version ${version} wurde nicht installiert: Ihr Installationsprogramm passt nicht zur mit ihr veröffentlichten Prüfsumme. Es wurde nichts geändert.`,
+    installerNotDownloaded: (version: string) => `Version ${version} wurde nicht installiert: Das Installationsprogramm oder seine Prüfsumme konnte nicht heruntergeladen werden. Prüfen Sie die Verbindung und versuchen Sie es erneut. Es wurde nichts geändert.`,
     position: 'Position'
   },
   writing: {

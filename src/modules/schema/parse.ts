@@ -151,7 +151,7 @@ export function parseSchema(text: string): ParsedSchema {
   })
 
   // ---- feature switches set by the team: `features: { branches: false }`; unknown names are kept (a newer
-  // ReqMan may know them), values other than true/false/on/off are reported
+  // reqochet may know them), values other than true/false/on/off are reported
   let features: Record<string, boolean> | undefined
   if (root.features !== undefined) {
     if (!isObj(root.features)) add('features', 'Must be a mapping, e.g. "features: { branches: false }".')

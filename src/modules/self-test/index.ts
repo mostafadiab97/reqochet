@@ -266,7 +266,7 @@ export async function runReleaseSelfTest(deps: SelfTestDeps): Promise<ReleaseSel
     await step('A file renamed by hand is found and fixed', async () => {
       const items = join(mine, 'requirements', FIRST_DOCUMENT)
       await rename(join(items, `${id('test')}.md`), join(items, 'RENAMED-BY-HAND.md'))
-      await new Promise((r) => setTimeout(r, 300)) // like a user switching back to ReqMan afterwards
+      await new Promise((r) => setTimeout(r, 300)) // like a user switching back to reqochet afterwards
       const info = await W().refresh()
       expect(info.issues.some((i) => i.fix === 'file-name' && i.itemId === id('test')), 'The renamed file was not reported.')
       expect(await W().getItem(id('test')), 'The item in the renamed file cannot be opened.')

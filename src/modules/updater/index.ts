@@ -1,5 +1,5 @@
 // PUBLIC ENTRY of the updater module. Other code may import only from this file.
-// Responsibility: find, download and install new ReqMan versions published as GitHub Releases.
+// Responsibility: find, download and install new reqochet versions published as GitHub Releases.
 // Updates download in the background; the user chooses when to restart.
 import type { UpdateStatus } from '../../shared/api'
 import { createGithubUpdater } from './githubUpdater'
@@ -10,7 +10,7 @@ export interface UpdateService {
   start(onStatus: (status: UpdateStatus) => void): void
   /** Checks immediately (e.g. from a button). */
   checkNow(): Promise<void>
-  /** Closes ReqMan, installs the downloaded update and reopens it. */
+  /** Closes reqochet, installs the downloaded update and reopens it. */
   installAndRestart(): void
   current(): UpdateStatus
   /** Versions one can go back to (newest first). */
@@ -25,4 +25,4 @@ export interface UpdateService {
 }
 
 export { createGithubUpdater }
-export { compareVersions, newerRelease, OLDEST_REVERT_TARGET, parseReleases, revertTargets, type ReleaseInfo } from './versions'
+export { checkInstaller, compareVersions, isOwnReleaseUrl, newerRelease, OLDEST_REVERT_TARGET, parseReleases, releaseTagOf, revertTargets, type ReleaseInfo } from './versions'

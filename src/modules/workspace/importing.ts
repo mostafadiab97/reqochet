@@ -212,7 +212,7 @@ export function createImportOps(ctx: WorkspaceContext, structure: StructureOps, 
 
     /**
      * "Update the Excel file": the cells of the remembered columns whose value differs from the repository now,
-     * and rows for items the file does not have yet. Rows of items deleted in ReqMan stay (the file is the
+     * and rows for items the file does not have yet. Rows of items deleted in reqochet stay (the file is the
      * user's; nothing is removed from it).
      */
     async sourceUpdate(sheet: string[][]): Promise<{ edits: CellEdit[]; append: string[][]; sheet: string; changedItems: number; added: number }> {

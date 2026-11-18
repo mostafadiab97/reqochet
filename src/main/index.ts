@@ -15,7 +15,7 @@ import { Channels } from '../shared/api'
 // appId, the installed app — the two tools can sit side by side on one PC.
 const PRODUCT = app.getName()
 
-// One app per user: a second start (e.g. a double-click on the shortcut while ReqMan is open)
+// One app per user: a second start (e.g. a double-click on the shortcut while reqochet is open)
 // brings the open window to the front instead of starting a second app on the same data.
 const firstInstance = app.requestSingleInstanceLock()
 if (!firstInstance) app.quit()

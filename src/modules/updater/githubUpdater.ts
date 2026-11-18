@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { app, net } from 'electron'
@@ -7,7 +7,7 @@ import { autoUpdater } from 'electron-updater'
 import { parse as parseYaml } from 'yaml'
 import type { UpdateStatus } from '../../shared/api'
 import type { UpdateService } from './index'
-import { newerRelease, parseReleases, revertTargets, type ReleaseInfo } from './versions'
+import { checkInstaller, isOwnReleaseUrl, releaseTagOf, newerRelease, parseReleases, revertTargets, type ReleaseInfo } from './versions'
 import { T } from '../../shared/text'
 
 interface Deps {
@@ -153,18 +153,52 @@ export function createGithubUpdater({ enabled, log, holdFile, updateConfigFile }
     listEarlier,
     async installEarlier(version, closeWindow) {
       if (!enabled) return { ok: false, message: T.coreMsg.onlyInstalled }
+      let dir: string | null = null
       try {
         const target = (releases.length ? revertTargets(releases, app.getVersion()) : await listEarlier()).find((r) => r.version === version)
         if (!target) return { ok: false, message: T.coreMsg.notAVersion(version) }
+        // only from this app's own releases, checked against the SHA-512 published with
+        // that release before it runs, saved in a new folder with a random name (no predictable file to swap)
+        const feed = feedConfig()
+        const tag = releaseTagOf(target.installerUrl)
+        if (
+          !isOwnReleaseUrl(target.installerUrl, feed.owner, feed.repo, target.installerName) ||
+          !isOwnReleaseUrl(target.checksumsUrl, feed.owner, feed.repo, 'latest.yml') ||
+          !tag ||
+          releaseTagOf(target.checksumsUrl) !== tag
+        ) {
+          log.error(`Going back to ${version} refused: not a download from this app's releases`)
+          throw new Error(T.coreMsg.installerNotVerified(version))
+        }
         log.info(`Going back to version ${version}: downloading ${target.installerUrl}`)
-        const res = await net.fetch(target.installerUrl)
-        if (!res.ok) throw new Error(`download failed (${res.status})`)
-        const file = join(tmpdir(), `${app.getName()}-Setup-${version}.exe`)
-        writeFileSync(file, Buffer.from(await res.arrayBuffer()))
+        const download = async (url: string) => {
+          // a time limit, so a stalled download does not keep the window waiting for ever
+          const res = await net.fetch(url, { signal: AbortSignal.timeout(10 * 60_000) }).catch((e: unknown) => {
+            log.error(`Going back to ${version}: ${url} could not be downloaded`, e)
+            return null
+          })
+          if (!res?.ok) {
+            if (res) log.error(`Going back to ${version}: ${url} answered ${res.status}`)
+            throw new Error(T.coreMsg.installerNotDownloaded(version))
+          }
+          return res
+        }
+        const bytes = Buffer.from(await (await download(target.installerUrl)).arrayBuffer())
+        const sums = await (await download(target.checksumsUrl)).text()
+        const check = checkInstaller(bytes, sums, target.installerName)
+        if (!check.ok) {
+          log.error(`Going back to ${version} refused: ${check.reason}`)
+          throw new Error(T.coreMsg.installerNotVerified(version))
+        }
+        log.info(`Going back to ${version}: the installer matches its published SHA-512`)
         if (closeWindow && !(await closeWindow())) {
           log.info(`Going back to ${version} stopped: the user kept editing`)
           return { ok: false, message: '', canceled: true }
         }
+        // written only now, right before it runs, into a new folder with a random name (no predictable file to swap)
+        dir = mkdtempSync(join(tmpdir(), `${app.getName()}-rollback-`))
+        const file = join(dir, target.installerName)
+        writeFileSync(file, bytes, { flag: 'wx' })
         // silent install over the current version, then start the app again (electron-builder's NSIS options);
         // updates are paused only once the installer really started
         const child = spawn(file, ['/S', '--force-run'], { detached: true, stdio: 'ignore' })
@@ -175,14 +209,18 @@ export function createGithubUpdater({ enabled, log, holdFile, updateConfigFile }
             resolve(false)
           })
         })
-        if (!started) throw new Error('the installer could not be started')
+        if (!started) {
+          throw new Error('the installer could not be started')
+        }
         child.unref()
+        dir = null // the installer runs from it now: never removed from here on
         writeFileSync(holdFile, JSON.stringify({ version, since: new Date().toISOString() }))
         log.info(`Updates paused at ${version}; the installer is running`)
         setTimeout(() => app.quit(), 500)
         return { ok: true }
       } catch (e) {
         log.error(`Going back to ${version} failed`, e)
+        if (dir) rmSync(dir, { recursive: true, force: true }) // nothing left behind when it did not start
         return { ok: false, message: (e as Error).message }
       }
     },

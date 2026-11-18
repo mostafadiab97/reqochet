@@ -1,6 +1,6 @@
 # reqochet — User Guide
 
-Matches reqochet 0.28 · November 2026 · *reqochet was called ReqMan until version 0.15. The development tool is named reqochet; the release tool is reqochet — they work the same.*
+Matches reqochet 1.0 · November 2026 · *reqochet was called ReqMan until version 0.15. The development tool is named reqochet; the release tool is reqochet — they work the same.*
 
 reqochet is a Windows desktop application for writing, structuring and tracing requirements. Every requirement is a
 small text file in your project's own Git repository, so requirements get the same history, branches, reviews and

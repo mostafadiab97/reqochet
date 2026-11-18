@@ -1,6 +1,6 @@
 // The Git side of the workspace (M4): what changed, commit, pull, push, discard, per-item history.
 // Rules (decided with the product):
-//  - ReqMan commits only the requirements folder, never other project files.
+//  - reqochet commits only the requirements folder, never other project files.
 //  - Push never forces. Pull and branches live in merging.ts (M8).
 import { readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'

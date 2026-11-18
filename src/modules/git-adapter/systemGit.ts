@@ -1,4 +1,4 @@
-// Implementation: uses the Git installed on the user's PC (Git for Windows), so ReqMan works
+// Implementation: uses the Git installed on the user's PC (Git for Windows), so reqochet works
 // with exactly the credentials, SSH keys and configuration the user already has.
 // Every call passes arguments as an array (no shell), so file names and messages are never interpreted.
 import { execFile, spawn } from 'node:child_process'

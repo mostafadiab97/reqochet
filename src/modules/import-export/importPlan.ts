@@ -83,7 +83,7 @@ export interface ExistingItems {
   byId: ReadonlyMap<string, Item>
   /** Whether an item exists in the repository at all (parents and link targets outside the file). */
   exists?: (id: string) => boolean
-  /** `source-id` (the ID in another tool) → ReqMan ID, from earlier imports. */
+  /** `source-id` (the ID in another tool) → reqochet ID, from earlier imports. */
   bySource: ReadonlyMap<string, string>
 }
 
@@ -155,7 +155,7 @@ export function planImport(input: ImportPlanInput): ImportPlan {
   const fieldCols = colsOf((t) => t.startsWith('field:')).map((c) => ({ c, def: schema.fields.find((f) => f.id === mapping[c]?.slice(6)) })).filter((x): x is { c: number; def: FieldDef } => x.def !== undefined)
 
   const mappedFields = new Set(fieldCols.map((x) => x.def.id))
-  // ---- pass 1: one planned item per usable row, with its ReqMan ID
+  // ---- pass 1: one planned item per usable row, with its reqochet ID
   type Draft = { row: number; r: string[]; seq: number; item: Item; base: Item | null; key: string | null }
   const drafts: Draft[] = []
   const byKey = new Map<string, Draft>() // file ID (ours or foreign) → row
@@ -190,7 +190,7 @@ export function planImport(input: ImportPlanInput): ImportPlan {
     else if (key && existing.bySource.has(key)) id = existing.bySource.get(key) as string
     const base = id ? (existing.byId.get(id) ?? null) : null
     if (!id) {
-      if (key && input.isValidId(key) && !takenNew.has(key)) id = key // e.g. a ReqMan export opened in another repository
+      if (key && input.isValidId(key) && !takenNew.has(key)) id = key // e.g. a reqochet export opened in another repository
       else id = input.newId()
       takenNew.add(id)
     }
@@ -227,7 +227,7 @@ export function planImport(input: ImportPlanInput): ImportPlan {
     if (key) byKey.set(key, d)
   })
 
-  // resolves an ID written in the file (ours, another tool's, or a row of this file) to a ReqMan ID
+  // resolves an ID written in the file (ours, another tool's, or a row of this file) to a reqochet ID
   const exists = (id: string): boolean => existing.byId.has(id) || existing.exists?.(id) === true
   const resolve = (ref: string): string | null => byKey.get(ref)?.item.id ?? (exists(ref) ? ref : (existing.bySource.get(ref) ?? null))
 

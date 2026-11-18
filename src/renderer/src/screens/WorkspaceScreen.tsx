@@ -212,7 +212,7 @@ export function WorkspaceScreen({
   const [refreshError, setRefreshError] = useState<string | null>(null)
 
   /**
-   * After ReqMan changed something: redraw, and re-read only the files that changed (the core watches the
+   * After reqochet changed something: redraw, and re-read only the files that changed (the core watches the
    * folder, so this costs milliseconds even with 10,000 items).
    */
   const afterChange = useCallback(async (): Promise<void> => {

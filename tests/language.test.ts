@@ -46,7 +46,7 @@ describe('Arabic texts', () => {
     const en = new Map(leaves(T as unknown as Node).filter(([, v]) => typeof v === 'string') as [string, string][])
     setLanguage('ar')
     const ar = leaves(T as unknown as Node).filter(([, v]) => typeof v === 'string') as [string, string][]
-    const same = ar.filter(([k, v]) => en.get(k) === v && /[a-z]{3}/.test(v) && !/^(ReqMan|Git|GitHub|Excel|ReqIF|CSV|Markdown|English|Ctrl)/.test(v))
+    const same = ar.filter(([k, v]) => en.get(k) === v && /[a-z]{3}/.test(v) && !/^(reqochet|Git|GitHub|Excel|ReqIF|CSV|Markdown|English|Ctrl)/.test(v))
     expect(same.length / ar.length).toBeLessThan(0.05)
   })
 })

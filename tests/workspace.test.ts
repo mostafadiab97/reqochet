@@ -73,7 +73,7 @@ describe('workspace', () => {
     expect(d?.issues).toEqual([])
   })
 
-  it('refuses saving over a file that changed outside ReqMan', async () => {
+  it('refuses saving over a file that changed outside reqochet', async () => {
     const { ws, root } = await setup()
     await ws.initialize(root)
     const item = ws.newItem('risk')

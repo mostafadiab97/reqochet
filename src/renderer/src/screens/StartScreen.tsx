@@ -62,7 +62,7 @@ export function StartScreen({
     }
   }
 
-  // M7: choose an Excel/CSV file and an empty folder; ReqMan makes the Git repository and opens the import wizard
+  // M7: choose an Excel/CSV file and an empty folder; reqochet makes the Git repository and opens the import wizard
   const fromFile = async (): Promise<void> => {
     setPending({ kind: 'busy', label: T.start.creating })
     try {

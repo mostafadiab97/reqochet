@@ -42,9 +42,9 @@ describe('problem report', () => {
   const now = new Date(2026, 10, 2, 21, 5)
   it('holds the description, the diagnostics and the newest log lines', () => {
     const log = Array.from({ length: REPORT_LOG_LINES + 50 }, (_, i) => `line ${i}`).join('\n')
-    const r = buildProblemReport({ description: '  Push failed after a pull.  ', diagnostics: 'ReqMan 0.14.0\nGit: 2.47', log, now })
+    const r = buildProblemReport({ description: '  Push failed after a pull.  ', diagnostics: 'reqochet 0.14.0\nGit: 2.47', log, now })
     expect(r).toContain('== What happened ==\r\nPush failed after a pull.\r\n')
-    expect(r).toContain('ReqMan 0.14.0\nGit: 2.47')
+    expect(r).toContain('reqochet 0.14.0\nGit: 2.47')
     expect(r).toContain(`== Log (last ${REPORT_LOG_LINES} lines) ==`)
     expect(r).toContain(`line ${REPORT_LOG_LINES + 49}`)
     expect(r).not.toContain('line 49\r\n')

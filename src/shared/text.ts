@@ -1387,6 +1387,8 @@ const en = {
     updateCheckFailed: 'Could not check for updates (offline or GitHub unreachable).',
     onlyInstalled: 'Only the installed Windows app can change its version.',
     notAVersion: (version: string) => `Version ${version} is not one you can go back to.`,
+    installerNotVerified: (version: string) => `Version ${version} was not installed: its installer does not match the checksum published with it. Nothing was changed.`,
+    installerNotDownloaded: (version: string) => `Version ${version} was not installed: its installer or its checksum could not be downloaded. Check the connection and try again. Nothing was changed.`,
     position: 'Position'
   },
   writing: {

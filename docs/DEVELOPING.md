@@ -17,7 +17,8 @@
    ```
    cd C:\path\to\empty-folder
    git clone https://github.com/<owner>/reqochet.git .
-   npm ci
+   npm ci --ignore-scripts
+   node node_modules/electron/install.js
    npm run check
    ```
 

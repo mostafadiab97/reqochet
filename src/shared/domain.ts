@@ -122,7 +122,7 @@ export interface Item {
   document?: string
   /** The requirement text (Markdown). */
   text: string
-  /** Header keys this version of ReqMan does not know; written back unchanged so nothing is ever lost. */
+  /** Header keys this version of reqochet does not know; written back unchanged so nothing is ever lost. */
   extra: Record<string, unknown>
 }
 

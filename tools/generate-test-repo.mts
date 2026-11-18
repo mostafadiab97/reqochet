@@ -1,4 +1,4 @@
-// Creates a folder with a ReqMan requirements set of generated, fictional items.
+// Creates a folder with a reqochet requirements set of generated, fictional items.
 //   npm run gen:repo -- <folder> [count]       e.g. npm run gen:repo -- ../test-repo-1k 1000
 // The folder must not contain a requirements folder yet. Run `git init` in it afterwards to try Git features.
 import { mkdir } from 'node:fs/promises'

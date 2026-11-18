@@ -90,7 +90,7 @@ await scenario('E2E excel', async (ctx) => {
   check(await exp.getByRole('radio', { name: /^The chosen item REQ-/ }).isChecked(), 'right-click → export this item opens with that item')
   await exp.getByRole('button', { name: 'Cancel' }).click()
 
-  console.log('Update the Excel file with a change made in ReqMan')
+  console.log('Update the Excel file with a change made in reqochet')
   await other.click()
   await win.locator('.editor').getByLabel('Status').selectOption('Obsolete')
   await win.getByRole('button', { name: 'Save', exact: true }).click()
@@ -111,7 +111,7 @@ await scenario('E2E excel', async (ctx) => {
   await again.locator('.import__file').waitFor()
   await again.getByRole('button', { name: 'Next' }).click()
   await again.locator('.import__counts', { hasText: '59 unchanged' }).waitFor()
-  check(true, 'every row matches its item (the file and ReqMan agree)')
+  check(true, 'every row matches its item (the file and reqochet agree)')
   // 0.21.4 test 3: a warning, not "No problems found"
   await again.getByRole('button', { name: 'Next' }).click()
   await again.locator('.import__nothing').waitFor()

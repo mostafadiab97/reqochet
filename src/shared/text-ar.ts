@@ -1382,6 +1382,8 @@ const raw: Texts = {
     updateCheckFailed: 'تعذّر البحث عن تحديثات (لا اتصال أو تعذّر الوصول إلى GitHub).',
     onlyInstalled: 'لا يغيّر نسخته إلا تطبيق Windows المثبَّت.',
     notAVersion: (version: string) => `الإصدار \u2066${version}\u2069 ليس إصدارًا يمكن الرجوع إليه.`,
+    installerNotVerified: (version: string) => `لم يُثبَّت الإصدار \u2066${version}\u2069: لا يطابق برنامج تثبيته المجموع الاختباري المنشور معه. لم يتغير شيء.`,
+    installerNotDownloaded: (version: string) => `لم يُثبَّت الإصدار \u2066${version}\u2069: تعذّر تنزيل برنامج تثبيته أو مجموعه الاختباري. تحقّق من الاتصال وحاول مرة أخرى. لم يتغير شيء.`,
     position: 'الموضع'
   },
   writing: {
