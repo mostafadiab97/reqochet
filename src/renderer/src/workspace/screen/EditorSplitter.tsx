@@ -4,6 +4,8 @@ import { isRtlDocument } from '../../lib/language'
 
 const KEY = 'reqman.editorWidth'
 const MIN = 360
+/** The width the keyboard starts from while the editor has its automatic width. */
+const AUTO = 440
 const load = (): number | null => {
   try {
     const n = Number(localStorage.getItem(KEY))
@@ -46,7 +48,7 @@ export function useEditorWidth(): { style: CSSProperties; handle: ReactElement }
     const toEdge = isRtlDocument() ? 'ArrowLeft' : 'ArrowRight'
     if (e.key === 'Home') setWidth(null)
     else if (e.key === toTable || e.key === toEdge) {
-      const now = width ?? 440
+      const now = width ?? AUTO
       setWidth(Math.round(Math.max(MIN, Math.min(now + (e.key === toTable ? 24 : -24), window.innerWidth * 0.7))))
     } else return
     e.preventDefault()
@@ -58,7 +60,9 @@ export function useEditorWidth(): { style: CSSProperties; handle: ReactElement }
       tabIndex={0}
       aria-orientation="vertical"
       aria-label={T.workspace.editorWidth}
-      aria-valuenow={width ?? undefined}
+      // a focusable separator says where it stands (axe aria-required-attr): the width, or the automatic one
+      aria-valuenow={width ?? AUTO}
+      aria-valuemin={MIN}
       title={T.workspace.editorWidth}
       onPointerDown={start}
       onKeyDown={onKey}

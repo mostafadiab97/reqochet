@@ -382,27 +382,27 @@ export function FieldsDialog({ info, onSaved, onClose }: { info: RepoInfo; onSav
           </p>
           <div className="fields-table" role="table" aria-label={T.fields.table}>
             <div className="fields-table__head" role="row">
-              <span>{T.fields.name}</span>
-              <span>{T.fields.kind}</span>
-              <span>{T.fields.options}</span>
-              <span>{T.fields.default}</span>
-              <span />
+              <span role="columnheader">{T.fields.name}</span>
+              <span role="columnheader">{T.fields.kind}</span>
+              <span role="columnheader">{T.fields.options}</span>
+              <span role="columnheader">{T.fields.default}</span>
+              <span role="columnheader" />
             </div>
             {withIds.map((r, i) => {
               const was = original.get(r.id)
               return (
                 <div key={r.key} className="fields-table__row" role="row">
-                  <span>
+                  <span role="cell">
                     <input className="input" aria-label={T.fields.nameOf(i + 1)} value={r.name} placeholder={T.fields.namePlaceholder} onChange={(e) => patch(r.key, { name: e.target.value })} />
                     <span className="fields-table__id" title={T.fields.keyTooltip}>{r.id ? T.fields.key(r.id) : T.fields.keyFromName}</span>
                   </span>
-                  <span>
+                  <span role="cell">
                     <select className="input" aria-label={T.fields.kindOf(i + 1)} value={r.type} onChange={(e) => patch(r.key, { type: e.target.value as FieldType })}>
                       {fieldTypes().map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
                     </select>
                     {was && was.type !== r.type && <span className="field__error">{T.fields.kindChanged}</span>}
                   </span>
-                  <span>
+                  <span role="cell">
                     {r.type === 'enum' || r.type === 'list' ? (
                       <input
                         className="input"
@@ -415,7 +415,7 @@ export function FieldsDialog({ info, onSaved, onClose }: { info: RepoInfo; onSav
                       <span className="muted-inline">—</span>
                     )}
                   </span>
-                  <span>
+                  <span role="cell">
                     {r.type === 'enum' ? (
                       <select className="input" aria-label={T.fields.defaultOf(i + 1)} value={r.default} onChange={(e) => patch(r.key, { default: e.target.value })}>
                         <option value="">{T.fields.none}</option>
@@ -431,7 +431,7 @@ export function FieldsDialog({ info, onSaved, onClose }: { info: RepoInfo; onSav
                       />
                     )}
                   </span>
-                  <span className="actions">
+                  <span className="actions" role="cell">
                     <button type="button" className="icon-btn" aria-label={T.fields.up(r.name)} disabled={i === 0} onClick={() => move(i, -1)}><Icon name="arrowUp" size={14} /></button>
                     <button type="button" className="icon-btn" aria-label={T.fields.down(r.name)} disabled={i === rows.length - 1} onClick={() => move(i, 1)}><Icon name="arrowDown" size={14} /></button>
                     <button type="button" className="icon-btn" aria-label={T.fields.remove(r.name)} title={T.fields.removeTooltip} onClick={() => {

@@ -369,8 +369,8 @@ export function ItemEditor(props: {
               className="input text-preview markdown"
               role="button"
               tabIndex={0}
+              // the spoken name is the text itself (what is shown); the tooltip tells what a click does (1.0.2, axe)
               title={T.editor.editTextTooltip}
-              aria-label={T.editor.editTextTooltip}
               onClick={(e) => {
                 // a click on a link (or on bold text inside one) opens the link, not the text box
                 if (e.target instanceof Element && e.target.closest('a')) return

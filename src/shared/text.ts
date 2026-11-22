@@ -338,6 +338,8 @@ const en = {
     // 0.23.0 the document button and its menu
     button: (name: string, count: number) => `Document: ${name}, ${count} item(s)`,
     countShort: (count: number) => `${count}`,
+    /** spoken after the count on the document button (screen readers only) */
+    countUnit: 'item(s)',
     menuLabel: 'Documents',
     renameNamed: (name: string) => `Rename "${name}"…`,
     mergeNamed: (name: string) => `Merge "${name}" into…`,
@@ -1243,10 +1245,11 @@ const en = {
     exists: (name: string) => `There is already a baseline called ${name}.`,
     badCommit: 'That is not a commit ID.',
     branchMade: (name: string) => `Branch ${name} created. Switch to it with the branch button when you want to work there.`,
-    openFor: (what: string) => `Open ${what} read-only`,
-    compareFor: (what: string) => `Compare ${what} with now`,
-    baselineFor: (what: string) => `Make a baseline at ${what}`,
-    branchFor: (what: string) => `New branch at ${what}`,
+    // the spoken name starts with the button's visible words (1.0.2, axe label-content-name-mismatch)
+    openFor: (what: string) => `Open read-only: ${what}`,
+    compareFor: (what: string) => `Compare with now: ${what}`,
+    baselineFor: (what: string) => `Make baseline: ${what}`,
+    branchFor: (what: string) => `New branch here: ${what}`,
     nameRule: 'Letters, digits, dots, dashes, underscores; no spaces or slashes.',
     refused: 'name taken on GitHub',
     refusedTooltip: 'GitHub already has a baseline of this name from someone else — this one stays on this PC. Make it again under another name.',

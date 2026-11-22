@@ -4,7 +4,7 @@ import type { ItemQuery, Schema, SortKey } from '../../../shared/domain'
 import { T } from '../../../shared/text'
 import { renderItemText } from '../lib/markdown'
 import { isHeading } from '../lib/schema'
-import { clampWidth, columnTemplate, columnsFor, linkTitle, tableMinWidth, type ColumnPrefs } from './table/columns'
+import { clampWidth, columnTemplate, columnsFor, linkTitle, MAX_COLUMN_PX, MIN_COLUMN_PX, tableMinWidth, type ColumnPrefs } from './table/columns'
 import { useRowDrag } from './table/drag'
 import { useFlatRows, useTreeRows, type Row } from './table/rows'
 import { isRtlDocument, useLanguage } from '../lib/language'
@@ -320,6 +320,10 @@ export function ItemTable(props: {
                 <span
                   role="separator"
                   aria-orientation="vertical"
+                  // a focusable separator is a splitter: it says where it stands (the column's width in pixels)
+                  aria-valuenow={Math.round(c.width ?? c.minPx)}
+                  aria-valuemin={MIN_COLUMN_PX}
+                  aria-valuemax={MAX_COLUMN_PX}
                   aria-label={T.table.resize(c.label)}
                   title={T.table.resize(c.label)}
                   tabIndex={0}
@@ -337,7 +341,12 @@ export function ItemTable(props: {
           })}
         </div>
         {count === 0 ? (
-          typeof emptyText === 'string' ? <p className="table__empty">{emptyText}</p> : emptyText
+          // inside the tree grid even the empty message (or the first-run card, a region) sits in a row and a cell
+          <div role="row" className="cell-contents">
+            <div role="gridcell" className="cell-contents">
+              {typeof emptyText === 'string' ? <p className="table__empty">{emptyText}</p> : emptyText}
+            </div>
+          </div>
         ) : (
           <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
             {visible.map((v) => {
@@ -457,7 +466,7 @@ export function ItemTable(props: {
                             role="gridcell"
                             className={`table__td${c.key === 'id' ? ' table__td--id' : ''}${c.key === 'number' ? ' table__td--number' : ''}${c.key === 'links' ? ' table__td--links' : ''}${c.warn?.(item) ? ' table__td--warn' : ''}`}
                             title={c.key === 'links' ? linkTitle(item) : (c.tip?.(item) ?? c.value(item))}
-                            aria-label={c.key === 'links' && c.value(item) ? linkTitle(item) : undefined}
+                            // links: the cell's own words ("1 out · 2 in") are its name, the tooltip explains them (1.0.2, axe)
                             // user content takes its own direction, so it is cut at the right end in either window
                             dir={c.key === 'number' || c.key === 'id' || c.key === 'links' ? undefined : 'auto'}
                           >
