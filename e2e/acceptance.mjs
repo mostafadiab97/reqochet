@@ -28,6 +28,8 @@ const sandbox = arg('sandbox')
 const pushUrl = arg('push-url')
 const branch = arg('branch')
 const version = JSON.parse(readFileSync('package.json', 'utf8')).version
+// the Windows file version has four numbers only: a test build 1.0.2-next.1 reads 1.0.2.0 on disk (1.0.2)
+const fileVersion = version.split('-')[0]
 
 const done = []
 let failed = false
@@ -87,7 +89,7 @@ async function step1Install() {
   if (!previous || !prevVersion || !newer(version, prevVersion)) {
     runInstaller(installer)
     const v = installedVersion()
-    if (v?.startsWith(version)) did(`Installed this build (${version}) silently into ${installDir}${prevVersion ? ` — no update test: it is not newer than the latest release ${prevVersion}` : ''}.`)
+    if (v?.startsWith(fileVersion)) did(`Installed this build (${version}) silently into ${installDir}${prevVersion ? ` — no update test: it is not newer than the latest release ${prevVersion}` : ''}.`)
     else fail(`Installing ${basename(installer)} — the installed version is ${v ?? 'missing'}.`)
     return
   }
@@ -131,7 +133,7 @@ async function step1Install() {
   did(`Started ${prevVersion}: it found and downloaded ${status.version}.`)
   await win.evaluate(() => (window.reqochet ?? window.reqman).installUpdate()).catch(() => {})
   let v = null
-  for (let i = 0; i < 180 && !v?.startsWith(version); i++) {
+  for (let i = 0; i < 180 && !v?.startsWith(fileVersion); i++) {
     await sleep(1000)
     v = installedVersion()
   }
@@ -140,7 +142,7 @@ async function step1Install() {
   for (let i = 0; i < 30 && fromLegacy && process.env.CI && !existsSync(join(appData, PRODUCT, 'moved-from-reqman.txt')); i++) await sleep(1000)
   killApp() // the updater restarts the app after installing
   server.close()
-  if (v?.startsWith(version)) did(`Clicked "restart to update": the installed app is now ${PRODUCT} ${version}.`)
+  if (v?.startsWith(fileVersion)) did(`Clicked "restart to update": the installed app is now ${PRODUCT} ${version}.`)
   else fail(`After "restart to update" the installed version is ${v ?? 'missing'}, expected ${version}.`)
   if (fromLegacy) {
     // the switch: ReqMan removed by the new installer; settings moved by the new app's first (auto-restarted) start
