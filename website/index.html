@@ -238,6 +238,7 @@ section{padding:clamp(72px,10vw,136px) 0;overflow-x:clip}
 
 /* ── download ────────────────────────────────────── */
 .get .box{background:var(--panel);color:var(--panel-ink);border-radius:20px;padding:clamp(32px,6vw,80px);display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:clamp(28px,5vw,72px);align-items:center;position:relative;overflow:hidden;border:1px solid var(--panel-line)}
+.get .box li a{color:inherit;text-decoration:underline;text-underline-offset:2px}
 .get h2{font-size:clamp(2.4rem,5.6vw,4.6rem);line-height:1}
 .get p{color:var(--panel-muted);margin-top:20px;max-width:30em;font-size:1.1rem}
 .get .btn{margin-top:30px;background:#fff;color:#1b1f27;font-size:17px;padding:15px 26px}
@@ -752,7 +753,7 @@ footer p:last-child{margin-inline-start:auto}
 </footer>
 
 <script>
-/* Where the installers live. Replace with the releases page address before publishing. */
+/* Where the installers live: worked out from the page's own address (below). */
 // the latest release of the repository this page is served from (GitHub Pages: <owner>.github.io/<repo>/), worked out
 // in the browser so no account name is written into the file; anywhere else the button stays on the page
 const RELEASES_URL = (() => {
