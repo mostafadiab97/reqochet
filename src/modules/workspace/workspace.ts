@@ -86,6 +86,8 @@ export function createWorkspace(deps: WorkspaceDeps): WorkspaceService {
     return session
   }
 
+  /** Totals of count-only queries for one index state (1.0.2, PW-03). */
+  let counted: { index: IndexCache; revision: number; totals: Map<string, number> } | null = null
   let outline: { index: IndexCache; revision: number; map: Map<string, string>; ranks?: Map<string, number> } | null = null
 
   /** The session the read calls answer from: the old version while one is shown, else the open repository. */
@@ -591,20 +593,37 @@ export function createWorkspace(deps: WorkspaceDeps): WorkspaceService {
       const query = withRequired(s, asked)
       const numbers = ctx.numbers(s)
       const withNumbers = (r: QueryResult): QueryResult => ({ total: r.total, items: r.items.map((i) => withNumber(i, numbers)) })
+      // a count only (limit 0, e.g. the status bar's gap count after every refresh): the same question on an unchanged
+      // index has the same answer (1.0.2, PW-03)
+      if (query.limit === 0) {
+        const key = JSON.stringify({ ...query, sort: undefined, offset: undefined })
+        const revision = s.index.revision()
+        if (counted?.index !== s.index || counted.revision !== revision) counted = { index: s.index, revision, totals: new Map() }
+        let total = counted.totals.get(key)
+        if (total === undefined) {
+          total = s.index.query(query).total
+          if (counted.totals.size >= 50) counted.totals.clear()
+          counted.totals.set(key, total)
+        }
+        return { total, items: [] }
+      }
       if (query.sort?.by !== 'number') return withNumbers(s.index.query(query))
-      // sorted by outline number: the index cannot do that in SQL, so sort the matching rows here
+      // sorted by outline number: the index cannot do that in SQL, so sort here — only the matching rows' IDs, then
+      // read the requested page in full (1.0.2, PW21-01: reading all 50,000 rows in full took about 1 s)
       const { limit = 200, offset = 0, ...rest } = query
       const ranks = ctx.numberRanks(s)
-      const all = queryAll(s.index, { ...rest, sort: { by: 'id' } })
+      const all = s.index.matching(rest)
       const dir = query.sort?.descending ? -1 : 1
-      // items without a number (outside the tree) come last in both directions (R7)
+      // items without a number (outside the tree) come last in both directions (R7); ties (an ID in two files) by row
       all.sort((a, b) => {
         const ra = ranks.get(a.id)
         const rb = ranks.get(b.id)
-        if (ra === undefined || rb === undefined) return (ra === undefined ? 1 : 0) - (rb === undefined ? 1 : 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
-        return (ra - rb) * dir
+        if (ra === undefined || rb === undefined) return (ra === undefined ? 1 : 0) - (rb === undefined ? 1 : 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : a.rid - b.rid)
+        return (ra - rb) * dir || a.rid - b.rid
       })
-      return { total: all.length, items: all.slice(offset, offset + limit).map((i) => withNumber(i, numbers)) }
+      const page = Math.max(0, Math.min(limit, 10_000))
+      const items = s.index.rows(all.slice(Math.max(0, offset), Math.max(0, offset) + page).map((r) => r.rid), query)
+      return { total: all.length, items: items.map((i) => withNumber(i, numbers)) }
     },
     getItem: viewItems.getItem,
     newItem: items.newItem,
