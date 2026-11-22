@@ -1261,6 +1261,7 @@ export const de: Texts = {
     upToDate: 'Bereits auf dem neuesten Stand.',
     wouldOverwrite: 'Pull angehalten — es wurde nichts geändert. Diese Elemente haben Änderungen, die Sie nicht committet haben, und der Pull würde sie überschreiben. Committen Sie sie zuerst (oder verwerfen Sie sie) und pullen Sie dann erneut.',
     noRemotePush: 'Dieses Repository hat kein Remote (zum Beispiel GitHub), zu dem gepusht werden könnte.',
+    badRemoteName: (name: string) => `Der Remote-Name „${name}“ in den Git-Einstellungen dieses Repositorys ist nicht erlaubt (er beginnt mit „-“ oder enthält Leerzeichen). Korrigieren Sie ihn in .git/config und pushen Sie erneut.`,
     upstreamOtherName: (branch: string, upstream: string) =>
       `Der Branch „${branch}“ folgt „${upstream}“, einem Branch mit anderem Namen — Push würde Ihre Commits auf „${upstream}“ legen. Der Push wurde nicht ausgeführt. Erstellen Sie in der Branch-Liste einen Branch mit eigenem Namen und pushen Sie diesen.`,
     nothingToPushYet: 'Noch nichts zu pushen — committen Sie zuerst Ihre Änderungen.',
@@ -1345,6 +1346,8 @@ export const de: Texts = {
     fileGone: 'Die Datei ist nicht mehr für den Import geöffnet — wählen Sie sie erneut aus.',
     notEmpty: 'Dieser Ordner ist nicht leer.',
     notEmptyDetail: (folder: string) => `${folder} enthält bereits Dateien. Ein neues Projekt braucht einen leeren Ordner — wählen Sie einen anderen oder erstellen Sie im Dialog einen neuen Ordner.`,
+    notReadable: 'Dieser Ordner kann nicht gelesen werden.',
+    notReadableDetail: (folder: string, reason: string) => `${folder} konnte nicht geöffnet werden (${reason}). Wählen Sie einen anderen Ordner oder erstellen Sie im Dialog einen neuen.`,
     imported: (name: string) => `Importiert aus ${name}`,
     noSource: 'Dieses Repository wurde nicht aus einer Datei auf diesem PC importiert.',
     sourceMissing: (path: string) => `Die Datei ${path} ist nicht mehr vorhanden.`,

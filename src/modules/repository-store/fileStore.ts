@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { documentOfPath } from '../../shared/domain'
-import { mkdir, readdir, readFile, lstat, stat, writeFile, rename, rmdir } from 'node:fs/promises'
+import { mkdir, readdir, readFile, lstat, stat, writeFile, rmdir } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join } from 'node:path'
 import { generateId, ITEM_FILE_EXTENSION, parseItemFile, serializeItem, type FieldValue, type Item } from '../items'
 import { isMap, isSeq, parseDocument, type YAMLMap, type YAMLSeq } from 'yaml'
@@ -123,6 +123,10 @@ export function createFileRepositoryStore(defaultSchemaFile: string): Repository
     const readAt = async (rel: string): Promise<{ ok: true; item: Item; revision: string } | { ok: false; error: string; revision: string } | null> => {
       let content: string
       try {
+        // the folder listing's checks here too: no links followed, nothing over 5 MB read whole (1.0.2, SEC-WP3-02)
+        const info = await lstat(join(folder, rel))
+        if (!info.isFile()) return { ok: false, error: T.coreMsg.notPlainFile, revision: '' }
+        if (info.size > MAX_ITEM_FILE_BYTES) return { ok: false, error: T.coreMsg.fileTooLarge(MAX_ITEM_FILE_BYTES / 1_000_000), revision: '' }
         content = await readFile(join(folder, rel), 'utf8')
       } catch (e) {
         if ((e as NodeJS.ErrnoException).code === 'ENOENT') return null
@@ -456,7 +460,7 @@ export function createFileRepositoryStore(defaultSchemaFile: string): Repository
         if (!empty) throw new Error('both-folders')
         await rmdir(join(folder, dst))
       }
-      await rename(join(folder, src), join(folder, dst))
+      await renameFile(join(folder, src), join(folder, dst)) // retried while Windows holds it (1.0.2, A-13)
       return { from: `${REQUIREMENTS_FOLDER}/${src}`, to: `${REQUIREMENTS_FOLDER}/${dst}` }
     },
 

@@ -8,7 +8,7 @@ const MAX_RECENT = 10
 /** Same folder regardless of letter case or trailing slash (Windows paths are case-insensitive). */
 export const sameFolder = (a: string, b: string): boolean => resolve(a).toLowerCase() === resolve(b).toLowerCase()
 
-/** The "recent repositories" list in %APPDATA%\ReqMan\recent-repositories.json (written atomically). */
+/** The "recent repositories" list in %APPDATA%\reqochet\recent-repositories.json (written atomically). */
 export function createRecentList(userDir: string, warn: (m: string) => void) {
   const file = join(userDir, 'recent-repositories.json')
 

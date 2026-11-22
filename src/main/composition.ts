@@ -29,7 +29,7 @@ export interface Paths {
   resourceDir: string
   /** Folder for the log file (per user). */
   logDir: string
-  /** Per-user folder for the user's own settings such as theme.json (%APPDATA%\\ReqMan). Survives updates. */
+  /** Per-user folder for the user's own settings such as theme.json (%APPDATA%\\reqochet). Survives updates. */
   userDir: string
   /** True for an installed build; enables self-updating. */
   packaged: boolean
@@ -74,7 +74,7 @@ export function createServices(paths: Paths, version = '0.0.0'): Services {
     workspace: createWorkspace({
       store: repositories,
       git,
-      // One index file per repository, outside the repository: %APPDATA%\ReqMan\cache\<hash>.sqlite
+      // One index file per repository, outside the repository: %APPDATA%\reqochet\cache\<hash>.sqlite
       openIndex: (root) => createSqliteIndexCache(join(paths.userDir, 'cache', cacheFileName(root))),
       // an old version's temporary index: in cache\versions\, emptied at start
       openIndexAt: (file) => createSqliteIndexCache(file),

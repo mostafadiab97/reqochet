@@ -1,6 +1,6 @@
 // Compare (M5): requirement-level differences between two versions of the requirements folder — the
 // "REQ-12 text changed", "TC-4 → REQ-7 link added" view instead of changed file lines (journey step 6).
-import { readFile } from 'node:fs/promises'
+import { lstat, readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 import type { CompareEntry, CompareOptions, CompareResult, LinkChange, SchemaChange, VersionLabel } from '../../shared/api'
 import type { Item, ItemDiff, Schema } from '../../shared/domain'
@@ -102,7 +102,7 @@ export function createCompare(git: GitAdapter) {
       let lastPull: CompareOptions['lastPull'] = null
       const i = reflog.findIndex((e) => PULL_STEP.test(e.subject))
       // `git pull --rebase` writes several steps, newest first: (finish), (pick)…, (start). The pull began before
-      // the start step. ReqMan's own pulls are one step named "pull <branch>".
+      // the start step. reqochet's own pulls are one step named "pull <branch>".
       let first = i
       if (i >= 0 && REBASE_STEP.test(reflog[i]?.subject ?? '')) {
         const start = reflog.findIndex((e, k) => k >= i && /\(start\)/.test(e.subject))
@@ -334,10 +334,33 @@ function confirmationsDiffer(a: Item | null, b: Item | null): boolean {
 }
 
 const CONFIRMED_LINE = /^[ \t]+confirmed:[^\n]*\n?/gm
-function sameIgnoringConfirmations(a: string | null, b: string | null): boolean {
+/**
+ * The two file texts are the same apart from links' `confirmed:` lines — in the header only (1.0.2, A-06: an indented
+ * "  confirmed: by the lab" in the item text is a real change, not a link review).
+ */
+export function sameIgnoringConfirmations(a: string | null, b: string | null): boolean {
   if (a === null || b === null) return false
-  const norm = (t: string): string => t.replace(/\r\n/g, '\n').replace(CONFIRMED_LINE, '')
+  const norm = (t: string): string => {
+    const text = t.replace(/\r\n/g, '\n')
+    const end = text.startsWith('---\n') ? text.indexOf('\n---', 3) : -1
+    if (end < 0) return text
+    return text.slice(0, end).replace(CONFIRMED_LINE, '') + text.slice(end)
+  }
   return norm(a) === norm(b)
+}
+
+/** Largest item file read for Compare — the store's own limit (1.0.2, SEC-WP3-22). */
+const MAX_COMPARED_BYTES = 5_000_000
+
+/** A working-folder file as Compare reads it: a plain file of at most 5 MB, else treated as absent (links not followed). */
+export async function readChecked(file: string): Promise<string | null> {
+  try {
+    const info = await lstat(file)
+    if (!info.isFile() || info.size > MAX_COMPARED_BYTES) return null
+    return await readFile(file, 'utf8')
+  } catch {
+    return null
+  }
 }
 
 async function readWorking(root: string, paths: string[]): Promise<Map<string, string | null>> {
@@ -347,7 +370,7 @@ async function readWorking(root: string, paths: string[]): Promise<Map<string, s
     Array.from({ length: Math.min(32, paths.length) }, async () => {
       while (next < paths.length) {
         const p = paths[next++] as string
-        out.set(p, await readFile(join(root, p), 'utf8').catch(() => null))
+        out.set(p, await readChecked(join(root, p)))
       }
     })
   )

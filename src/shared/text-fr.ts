@@ -1260,6 +1260,7 @@ export const fr: Texts = {
     upToDate: 'Déjà à jour.',
     wouldOverwrite: 'Pull interrompu\u00A0: rien n’a été modifié. Ces éléments ont des modifications sans commit, et le Pull les écraserait. Faites d’abord un commit (ou abandonnez-les), puis refaites un Pull.',
     noRemotePush: 'Ce dépôt n’a pas de dépôt distant (par exemple GitHub) vers lequel faire un Push.',
+    badRemoteName: (name: string) => `Le nom du dépôt distant «\u00A0${name}\u00A0» dans les réglages Git de ce dépôt n’est pas autorisé (il commence par «\u00A0-\u00A0» ou contient des espaces). Corrigez-le dans .git/config, puis refaites le Push.`,
     upstreamOtherName: (branch: string, upstream: string) =>
       `La branche «\u00A0${branch}\u00A0» suit «\u00A0${upstream}\u00A0», une branche d’un autre nom\u00A0: Push mettrait vos commits sur «\u00A0${upstream}\u00A0». Le Push n’a pas été fait. Créez une branche portant son propre nom dans la liste des branches et faites-y un Push.`,
     nothingToPushYet: 'Rien à envoyer pour l’instant\u00A0: faites d’abord un commit de vos modifications.',
@@ -1344,6 +1345,8 @@ export const fr: Texts = {
     fileGone: 'Le fichier n’est plus ouvert pour l’import\u00A0: choisissez-le à nouveau.',
     notEmpty: 'Ce dossier n’est pas vide.',
     notEmptyDetail: (folder: string) => `${folder} contient déjà des fichiers. Un nouveau projet nécessite un dossier vide\u00A0: choisissez-en un autre, ou créez un nouveau dossier dans la fenêtre.`,
+    notReadable: 'Ce dossier ne peut pas être lu.',
+    notReadableDetail: (folder: string, reason: string) => `Impossible d’ouvrir ${folder} (${reason}). Choisissez un autre dossier, ou créez-en un nouveau dans la fenêtre.`,
     imported: (name: string) => `Importé depuis ${name}`,
     noSource: 'Ce dépôt n’a pas été importé depuis un fichier de ce PC.',
     sourceMissing: (path: string) => `Le fichier ${path} n’existe plus.`,

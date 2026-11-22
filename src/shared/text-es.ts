@@ -1259,6 +1259,7 @@ export const es: Texts = {
     upToDate: 'Ya está actualizado.',
     wouldOverwrite: 'Extracción detenida: no se cambió nada. Estos elementos tienen cambios sin confirmar y la extracción los sobrescribiría. Confírmelos primero (o descártelos) y extraiga de nuevo.',
     noRemotePush: 'Este repositorio no tiene ningún remoto (por ejemplo, GitHub) en el que insertar.',
+    badRemoteName: (name: string) => `El nombre del remoto «${name}» en la configuración de Git de este repositorio no está permitido (empieza por «-» o contiene espacios). Corríjalo en .git/config y vuelva a insertar.`,
     upstreamOtherName: (branch: string, upstream: string) =>
       `La rama «${branch}» sigue a «${upstream}», una rama con otro nombre: Insertar pondría sus confirmaciones en «${upstream}». No se insertó nada. Cree en la lista de ramas una rama con su propio nombre e inserte esa.`,
     nothingToPushYet: 'Aún no hay nada que insertar: confirme primero sus cambios.',
@@ -1343,6 +1344,8 @@ export const es: Texts = {
     fileGone: 'El archivo ya no está abierto para importar: vuelva a elegirlo.',
     notEmpty: 'Esta carpeta no está vacía.',
     notEmptyDetail: (folder: string) => `${folder} ya contiene archivos. Un proyecto nuevo necesita una carpeta vacía: elija otra o cree una carpeta nueva en el cuadro de diálogo.`,
+    notReadable: 'No se puede leer esta carpeta.',
+    notReadableDetail: (folder: string, reason: string) => `No se pudo abrir ${folder} (${reason}). Elija otra carpeta o cree una nueva en el cuadro de diálogo.`,
     imported: (name: string) => `Importado desde ${name}`,
     noSource: 'Este repositorio no se importó desde un archivo de este PC.',
     sourceMissing: (path: string) => `El archivo ${path} ya no está allí.`,

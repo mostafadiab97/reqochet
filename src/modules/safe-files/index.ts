@@ -3,7 +3,7 @@
 // (write to a temporary file, then rename it over the target) and so that the short locks Windows often
 // puts on files (antivirus scanners, the search indexer, OneDrive, an editor) do not make an operation fail.
 import { randomBytes } from 'node:crypto'
-import { mkdir, rename, rm, writeFile } from 'node:fs/promises'
+import { mkdir, open, rename, rm } from 'node:fs/promises'
 import { dirname } from 'node:path'
 
 /** Error codes Windows returns while another program briefly holds a file. */
@@ -36,15 +36,22 @@ export interface AtomicWriteOptions {
 }
 
 /**
- * Writes `content` to `file` atomically: first to `<file>.<random>.tmp` in the same folder, then renames it
- * over the target (retried while Windows holds a lock). If the final rename still fails, the temporary file
- * is KEPT so nothing typed is lost, and the error message names it.
+ * Writes `content` to `file` atomically: first to `<file>.<random>.tmp` in the same folder, flushed to the disk
+ * (1.0.2, A-07: without the flush a power cut right after the rename can leave an empty file on some file systems),
+ * then renames it over the target (retried while Windows holds a lock). If the final rename still fails, the
+ * temporary file is KEPT so nothing typed is lost, and the error message names it.
  */
 export async function writeFileAtomic(file: string, content: string | Uint8Array, options: AtomicWriteOptions = {}): Promise<void> {
   if (options.mkdir) await mkdir(dirname(file), { recursive: true })
   const tmp = `${file}.${randomBytes(4).toString('hex')}.tmp`
   try {
-    await (typeof content === 'string' ? writeFile(tmp, content, 'utf8') : writeFile(tmp, content))
+    const handle = await open(tmp, 'w')
+    try {
+      await (typeof content === 'string' ? handle.writeFile(content, 'utf8') : handle.writeFile(content))
+      await handle.sync()
+    } finally {
+      await handle.close()
+    }
   } catch (e) {
     await rm(tmp, { force: true }).catch(() => {})
     throw e

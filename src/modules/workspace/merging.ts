@@ -18,7 +18,8 @@ import type { Item } from '../../shared/domain'
 import { T } from '../../shared/text'
 import { GitError, parseOverwrittenFiles, type GitAdapter } from '../git-adapter'
 import { generateId, mergeItems, parseItemFile, renameReferences, serializeItem, validateItem } from '../items'
-import { rm } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
+import { removeFile, writeFileAtomic } from '../safe-files'
 import { join } from 'node:path'
 import type { Logger } from '../logger'
 import { explainGitError, ID_FROM_PATH, reqPath, type createGitOps, type GitSession } from './gitOps'
@@ -186,7 +187,14 @@ export function createMerging(deps: MergingDeps) {
       // nothing committed here yet: simply take theirs
       return { plan: { source: src.ref, head: '', theirs, incoming: 0, combined: [], questions: [], duplicates: [], uncommitted: false }, analysis: { kind: 'fastForward', incoming: 0 } }
     }
-    const a = await analyse(s, head, theirs)
+    // an unexpected merge-tree failure (unrelated histories, an old Git) is explained, not shown raw (1.0.2, A-08)
+    let a: Awaited<ReturnType<typeof analyse>>
+    try {
+      a = await analyse(s, head, theirs)
+    } catch (e) {
+      log.error('Merge analysis failed', e)
+      return fail(s, explainGitError(e))
+    }
     if (a.kind === 'outside') return fail(s, T.merge.outside(a.files.join(', ')))
     if (a.kind === 'upToDate') return done(s, source === undefined ? T.gitMsg.upToDate : T.merge.nothingToPull(src.ref), true)
     const clash = await overwritten(s, await ops.state(s), a.kind === 'merge' ? (a.base ?? head) : head, theirs)
@@ -278,7 +286,7 @@ export function createMerging(deps: MergingDeps) {
     const remove = [...diff.filter((d) => d.status === 'D').map((d) => d.path), ...diff.flatMap((d) => (d.status === 'R' && d.from ? [d.from] : []))]
     try {
       if (restore.length > 0) await git.restoreFrom(root, commit, restore)
-      for (const r of remove) await rm(join(root, r), { force: true })
+      for (const r of remove) await removeFile(join(root, r)) // retried while Windows holds the file (1.0.2, A-13)
     } catch (e) {
       // part of it is already in the folder: the window must show it
       await deps.resync()
@@ -408,14 +416,20 @@ export function createMerging(deps: MergingDeps) {
       if (local === st.branch) return fail(s, T.merge.sameBranch)
       const localExists = refs.some((r) => r.kind === 'branch' && r.name === local)
       const target = localExists ? local : name
+      // with "discard": the files as they were before, put back if the switch then fails (1.0.2, A-10 — the changes were
+      // thrown away first, and an untracked file outside requirements/ could still stop the switch)
+      let before: Map<string, Buffer | null> | null = null
       if (st.changes.length > 0) {
         const paths = st.changes.map((c) => c.path)
         if (changes === 'discard') {
           try {
             // a renamed file: its old path comes back too, as Discard in Changes does
             const fromOf = new Map((await git.status(root, reqPath(s.repo))).changes.filter((c) => c.kind === 'renamed' && c.from).map((c) => [c.path, c.from as string]))
-            await git.discard(root, [...new Set(paths.flatMap((p) => (fromOf.has(p) ? [p, fromOf.get(p) as string] : [p])))])
+            const all = [...new Set(paths.flatMap((p) => (fromOf.has(p) ? [p, fromOf.get(p) as string] : [p])))]
+            before = new Map(await Promise.all(all.map(async (p) => [p, await readFile(join(root, p)).catch(() => null)] as const)))
+            await git.discard(root, all)
           } catch (e) {
+            if (before) await putBack(root, before)
             return fail(s, explainGitError(e))
           }
         } else {
@@ -429,6 +443,7 @@ export function createMerging(deps: MergingDeps) {
         if (ref.kind === 'remote' && !localExists) await git.switchBranch(root, local, { startPoint: name, track: true })
         else await git.switchBranch(root, target)
       } catch (e) {
+        if (before) await putBack(root, before)
         const over = e instanceof GitError ? parseOverwrittenFiles(e.stderr) : []
         if (over.length > 0) return fail(s, T.merge.blocking, over.map((x) => toChange(s, { path: x, kind: 'modified' })))
         return fail(s, explainGitError(e))
@@ -480,5 +495,13 @@ export function createMerging(deps: MergingDeps) {
       const from = (await git.mergeBase(root, head, to)) ?? null
       return from ? { from, to } : null
     }
+  }
+}
+
+/** Puts files back exactly as they were (content, or absent) after a refused branch switch (1.0.2, A-10). */
+async function putBack(root: string, before: Map<string, Buffer | null>): Promise<void> {
+  for (const [path, content] of before) {
+    const file = join(root, path)
+    await (content === null ? removeFile(file) : writeFileAtomic(file, content, { mkdir: true })).catch(() => undefined)
   }
 }

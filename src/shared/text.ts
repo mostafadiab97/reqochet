@@ -8,7 +8,7 @@
 // constant — read T when the text is shown.
 //
 // Rules: plain words, no jargon without explanation; keep keys grouped by the screen part that shows them.
-// Data (item titles, field names from schema.yaml) is never in here — only ReqMan's own words.
+// Data (item titles, field names from schema.yaml) is never in here — only reqochet's own words.
 //
 // Used by the window (renderer) and by the core for messages it sends to the window (Git, saving…).
 
@@ -1281,6 +1281,7 @@ const en = {
     upToDate: 'Already up to date.',
     wouldOverwrite: 'Pull stopped — nothing was changed. These items have changes you have not committed, and the pull would overwrite them. Commit them first (or discard them), then pull again.',
     noRemotePush: 'This repository has no remote (for example GitHub) to push to.',
+    badRemoteName: (name: string) => `The remote name "${name}" in this repository's Git settings is not allowed (it starts with "-" or contains spaces). Fix it in .git/config, then push again.`,
     upstreamOtherName: (branch: string, upstream: string) =>
       `The branch "${branch}" follows "${upstream}", a branch with another name — Push would put your commits on "${upstream}". Push was not done. Make a branch with its own name in the branch list and push that.`,
     nothingToPushYet: 'Nothing to push yet — commit your changes first.',
@@ -1365,6 +1366,8 @@ const en = {
     fileGone: 'The file is no longer open for import — choose it again.',
     notEmpty: 'This folder is not empty.',
     notEmptyDetail: (folder: string) => `${folder} already holds files. A new project needs an empty folder — choose another one, or make a new folder in the dialog.`,
+    notReadable: 'This folder cannot be read.',
+    notReadableDetail: (folder: string, reason: string) => `${folder} could not be opened (${reason}). Choose another folder, or make a new one in the dialog.`,
     imported: (name: string) => `Imported from ${name}`,
     noSource: 'This repository was not imported from a file on this PC.',
     sourceMissing: (path: string) => `The file ${path} is not there any more.`,

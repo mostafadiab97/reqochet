@@ -5,7 +5,8 @@ import { applyWindowMode } from './windowIcon'
 import { htmlToPdf } from './pdf'
 import { app, BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
 import { readFileSync } from 'node:fs'
-import { readdir, readFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
+import { folderState } from './folderState'
 import { basename, dirname, join } from 'node:path'
 import { Channels, type AppInfo, type ExportFormat, type ExportResult, type InvokeMethod, type ReqochetApi } from '../shared/api'
 import { runDataBenchmark } from '../modules/sample-data'
@@ -354,12 +355,15 @@ export function registerIpc(services: Services, paths: Paths): void {
         for (;;) {
           const folder = await openDialog(e, { title: T.importDialog.folderTitle, properties: ['openDirectory', 'createDirectory', 'promptToCreate'] })
           if (!folder) return { ok: false, canceled: true }
-          const inside = await readdir(folder).catch(() => [] as string[])
+          const state = await folderState(folder)
           // the first document is named after the file ("Brake spec.xlsx" → "Brake spec")
           const named = basename(file.path).replace(/\.[^.]+$/, '').trim()
-          if (inside.length === 0) return { ok: true, info: await ws.createProject(folder, isDocumentName(named) ? named : FIRST_DOCUMENT), file }
+          if (state.kind === 'empty') return { ok: true, info: await ws.createProject(folder, isDocumentName(named) ? named : FIRST_DOCUMENT), file }
           const win = BrowserWindow.fromWebContents(e.sender)
-          const opts = { type: 'warning' as const, title: T.importDialog.titleNew, message: T.importMsg.notEmpty, detail: T.importMsg.notEmptyDetail(folder), buttons: [T.importDialog.chooseAnother, T.common.cancel], defaultId: 0, cancelId: 1, noLink: true }
+          // full, or not readable (1.0.2, CRA-15: an unreadable folder used to count as empty)
+          const detail = state.kind === 'full' ? T.importMsg.notEmptyDetail(folder) : T.importMsg.notReadableDetail(folder, state.error)
+          const message = state.kind === 'full' ? T.importMsg.notEmpty : T.importMsg.notReadable
+          const opts = { type: 'warning' as const, title: T.importDialog.titleNew, message, detail, buttons: [T.importDialog.chooseAnother, T.common.cancel], defaultId: 0, cancelId: 1, noLink: true }
           const answer = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts)
           if (answer.response !== 0) return { ok: false, canceled: true }
         }

@@ -1,7 +1,7 @@
 // ReqIF (OMG Requirements Interchange Format 1.2) — the exchange format of DOORS, Jama, Polarion, ProR … (0.11.0).
 // Reading: a ReqIF file becomes the same table the Excel import uses (one row per object in hierarchy order, one
 // column per attribute and per relation type), so the import wizard, the column guessing and re-import matching
-// work unchanged. Writing: one specification with ReqMan's hierarchy, every field as an attribute, links as
+// work unchanged. Writing: one specification with reqochet's hierarchy, every field as an attribute, links as
 // relations. Pure: text in, text out (a .reqifz archive is unpacked by the caller).
 import { SaxesParser } from 'saxes'
 import type { FieldDef, IndexedItem, Schema } from '../../shared/domain'

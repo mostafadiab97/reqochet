@@ -4,7 +4,8 @@
 // Every operation that writes files, changes the index or runs Git goes through one queue.
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { access, mkdir, readdir, readFile, rename, rm, rmdir, writeFile } from 'node:fs/promises'
+import { access, mkdir, readdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises'
+import { removeFile, renameFile } from '../safe-files'
 import { basename, join, relative, resolve } from 'node:path'
 import type { CreateBaselineRequest, FolderCheck, GitResult, GitState, MatrixRequest, ImportSettings, MergeAnswers, MergePlan, ImportSource, IndexedItem, QueryResult, RepoInfo } from '../../shared/api'
 import type { GitAdapter } from '../git-adapter'
@@ -277,9 +278,10 @@ export function createWorkspace(deps: WorkspaceDeps): WorkspaceService {
       const dst = join(b, name)
       if (await exists(dst)) {
         const [x, y] = await Promise.all([readFile(src), readFile(dst)])
-        if (x.equals(y)) await rm(src)
+        // retried while Windows holds the file (1.0.2, A-13)
+        if (x.equals(y)) await removeFile(src)
         else differing.push(name.replace(/\.md$/, ''))
-      } else await rename(src, dst)
+      } else await renameFile(src, dst)
     }
     if ((await readdir(a)).length === 0) await rmdir(a).catch(() => undefined)
     s.repo = await ctx.openRepo(s.repo.root)
@@ -356,7 +358,7 @@ export function createWorkspace(deps: WorkspaceDeps): WorkspaceService {
       const gitBack = viaGit.filter((m) => existsSync(join(s.repo.folder, m.b)))
       if (from !== '' && gitBack.length > 0) await back(() => git.move(root, [p(target)], p(from)))
       else if (gitBack.length > 0) await back(() => git.move(root, gitBack.map((m) => p(m.b)), base))
-      for (const m of onDisk.filter((x) => existsSync(join(s.repo.folder, x.b)))) await back(() => rename(join(s.repo.folder, m.b), join(s.repo.folder, m.a)))
+      for (const m of onDisk.filter((x) => existsSync(join(s.repo.folder, x.b)))) await back(() => renameFile(join(s.repo.folder, m.b), join(s.repo.folder, m.a)))
       if (createdTarget) await rmdir(join(s.repo.folder, target)).catch(() => undefined)
       return ok
     }
@@ -382,7 +384,7 @@ export function createWorkspace(deps: WorkspaceDeps): WorkspaceService {
         if (from !== '') await git.move(root, [p(from)], p(target))
         else await git.move(root, viaGit.map((m) => p(m.a)), p(target))
       }
-      for (const m of onDisk) await rename(join(s.repo.folder, m.a), join(s.repo.folder, m.b))
+      for (const m of onDisk) await renameFile(join(s.repo.folder, m.a), join(s.repo.folder, m.b)) // A-13
     } catch (e) {
       return failed(explainGitError(e))
     }

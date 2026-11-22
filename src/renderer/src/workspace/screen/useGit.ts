@@ -119,7 +119,8 @@ export function useGit(opts: { dataVersion: number; dirty: boolean; afterChange:
   return {
     state,
     lastPull,
-    reload: () => void window.reqochet.getGitState().then(setState),
+    // a failed reload keeps the last state; the next refresh tries again (1.0.2, CRA-12)
+    reload: () => void window.reqochet.getGitState().then(setState, () => undefined),
     busy,
     notice,
     dismiss,

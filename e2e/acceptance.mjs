@@ -62,7 +62,10 @@ const killApp = () => {
   spawnSync('taskkill', ['/IM', `${PRODUCT}.exe`, '/F'], { stdio: 'ignore' })
   spawnSync('taskkill', ['/IM', 'ReqMan.exe', '/F'], { stdio: 'ignore' })
 }
-const runInstaller = (file) => execFileSync(file, ['/S'], { stdio: 'ignore', timeout: 300_000 })
+// the installed app, the installers and every Git process they start see no CI token: it is needed only inside the push
+// URL used by this script's own git calls (1.0.2, SEC-WP3-03)
+const appEnv = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(GH_TOKEN|GITHUB_TOKEN|GH_ENTERPRISE_TOKEN|ACTIONS_RUNTIME_TOKEN|ACTIONS_ID_TOKEN_REQUEST_TOKEN)$/.test(k)))
+const runInstaller = (file) => execFileSync(file, ['/S'], { stdio: 'ignore', timeout: 300_000, env: appEnv })
 // a test build "1.0.2-next.1" (public next branch, 1.0.2) is newer than 1.0.1 and older than 1.0.2
 const newer = (a, b) => {
   const core = (v) => v.split('-')[0].split('.').map((x) => Number.parseInt(x, 10) || 0)
@@ -75,7 +78,7 @@ const newer = (a, b) => {
 /** Starts the installed app; `openPath` answers the folder picker. */
 async function launchInstalled(openPath, executablePath = exe) {
   const userData = mkdtempSync(join(tmpdir(), 'reqochet-accept-'))
-  const app = await electron.launch({ executablePath, args: [`--user-data-dir=${userData}`] })
+  const app = await electron.launch({ executablePath, args: [`--user-data-dir=${userData}`], env: appEnv })
   if (openPath) await app.evaluate(({ dialog }, p) => void (dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [p] })), openPath)
   const win = await app.firstWindow()
   await win.setViewportSize({ width: 1400, height: 860 })
@@ -115,8 +118,13 @@ async function step1Install() {
     res.writeHead(200, { 'Content-Length': statSync(file).size })
     res.end(readFileSync(file))
   })
-  await new Promise((r) => server.listen(8765, '127.0.0.1', r))
-  writeFileSync(join(prevDir, 'resources', 'app-update.yml'), 'provider: generic\nurl: http://127.0.0.1:8765/\nupdaterCacheDirName: reqochet-updater\n')
+  // any free port (1.0.2, CR3-24: a fixed port failed when something else held it), and a clear error if it fails
+  await new Promise((r, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', r)
+  })
+  const port = server.address().port
+  writeFileSync(join(prevDir, 'resources', 'app-update.yml'), `provider: generic\nurl: http://127.0.0.1:${port}/\nupdaterCacheDirName: reqochet-updater\n`)
   did('Pointed the installed copy at a local update feed with this build (instead of GitHub Releases).')
   const { app, win } = await launchInstalled(undefined, prevExe)
   let status = null
