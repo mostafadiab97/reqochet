@@ -37,22 +37,24 @@ describe('count-only queries (1.0.2)', () => {
       watchFiles: false
     } as Parameters<typeof createWorkspace>[0])
     await ws.open(root)
+    try {
+      // the cached gap count equals the count of a normal query
+      const gaps = ws.query({ gaps: true, limit: 0 })
+      expect(gaps.items).toEqual([])
+      expect(gaps.total).toBe(ws.query({ gaps: true, limit: 10 }).total)
+      expect(ws.query({ gaps: true, limit: 0 }).total).toBe(gaps.total)
 
-    // the cached gap count equals the count of a normal query
-    const gaps = ws.query({ gaps: true, limit: 0 })
-    expect(gaps.items).toEqual([])
-    expect(gaps.total).toBe(ws.query({ gaps: true, limit: 10 }).total)
-    expect(ws.query({ gaps: true, limit: 0 }).total).toBe(gaps.total)
-
-    // different questions do not share an answer
-    expect(ws.query({ text: 'zebracornword', limit: 0 }).total).toBe(0)
-    const one = ws.query({ limit: 1, offset: 5 }).items[0]
-    const got = one ? await ws.getItem(one.id) : null
-    if (!got) throw new Error('no item')
-    expect((await ws.saveItem({ ...got.item, title: 'zebracornword here' }, got.revision)).ok).toBe(true)
-    // after the save the same question gets a new answer
-    expect(ws.query({ text: 'zebracornword', limit: 0 }).total).toBe(1)
-    expect(ws.query({ text: 'zebracornword', limit: 0, offset: 30, sort: { by: 'title' } }).total).toBe(1)
-    await ws.close?.()
+      // different questions do not share an answer
+      expect(ws.query({ text: 'zebracornword', limit: 0 }).total).toBe(0)
+      const one = ws.query({ limit: 1, offset: 5 }).items[0]
+      const got = one ? await ws.getItem(one.id) : null
+      if (!got) throw new Error('no item')
+      expect((await ws.saveItem({ ...got.item, title: 'zebracornword here' }, got.revision)).ok).toBe(true)
+      // after the save the same question gets a new answer
+      expect(ws.query({ text: 'zebracornword', limit: 0 }).total).toBe(1)
+      expect(ws.query({ text: 'zebracornword', limit: 0, offset: 30, sort: { by: 'title' } }).total).toBe(1)
+    } finally {
+      await ws.close?.() // an open index file cannot be removed on Windows (EBUSY)
+    }
   }, 60_000)
 })
