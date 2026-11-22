@@ -13,7 +13,8 @@ vi.mock('../src/modules/safe-files', async (importOriginal) => {
   return {
     ...real,
     removeFile: async (file: string, waits?: readonly number[]) => {
-      if (fail.on && file.endsWith(fail.on)) throw Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' })
+      // compared with forward slashes: Windows paths use backslashes (the first Windows run never failed here)
+      if (fail.on && file.split('\\').join('/').endsWith(fail.on)) throw Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' })
       return real.removeFile(file, waits)
     }
   }
