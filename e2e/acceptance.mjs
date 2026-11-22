@@ -61,11 +61,13 @@ const killApp = () => {
   spawnSync('taskkill', ['/IM', 'ReqMan.exe', '/F'], { stdio: 'ignore' })
 }
 const runInstaller = (file) => execFileSync(file, ['/S'], { stdio: 'ignore', timeout: 300_000 })
+// a test build "1.0.2-next.1" (public next branch, 1.0.2) is newer than 1.0.1 and older than 1.0.2
 const newer = (a, b) => {
-  const pa = a.split('.').map(Number)
-  const pb = b.split('.').map(Number)
+  const core = (v) => v.split('-')[0].split('.').map((x) => Number.parseInt(x, 10) || 0)
+  const pa = core(a)
+  const pb = core(b)
   for (let i = 0; i < 3; i++) if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pa[i] ?? 0) > (pb[i] ?? 0)
-  return false
+  return !a.includes('-') && b.includes('-')
 }
 
 /** Starts the installed app; `openPath` answers the folder picker. */

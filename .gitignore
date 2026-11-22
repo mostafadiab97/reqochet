@@ -9,3 +9,5 @@ e2e/out/
 # personal Claude Code settings
 .claude/settings.local.json
 coverage/
+.claude/rule-edit-ok
+website/check/

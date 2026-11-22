@@ -20,11 +20,40 @@ export interface ReleaseInfo {
   checksumsUrl: string
 }
 
-/** Compares "1.2.3" versions: negative when a < b. Pre-release suffixes are ignored. */
+/**
+ * Compares "1.2.3" versions: negative when a < b. A pre-release ranks below its release ("1.0.2-next.1" < "1.0.2"),
+ * so a PC with a test build from the public `next` branch still sees the real release as newer; two pre-releases
+ * of one version compare by their number ("next.2" > "next.1").
+ */
 export function compareVersions(a: string, b: string): number {
-  const pa = a.replace(/^v/, '').split(/[.-]/).map((x) => Number.parseInt(x, 10) || 0)
-  const pb = b.replace(/^v/, '').split(/[.-]/).map((x) => Number.parseInt(x, 10) || 0)
-  for (let i = 0; i < 3; i++) if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pa[i] ?? 0) - (pb[i] ?? 0)
+  const split = (v: string): { core: number[]; pre: string | null } => {
+    const s = v.trim().replace(/^v/, '').split('+')[0] ?? ''
+    const dash = s.indexOf('-')
+    const core = (dash < 0 ? s : s.slice(0, dash)).split('.').map((x) => Number.parseInt(x, 10) || 0)
+    return { core, pre: dash < 0 ? null : s.slice(dash + 1) }
+  }
+  const pa = split(a)
+  const pb = split(b)
+  for (let i = 0; i < 3; i++) if ((pa.core[i] ?? 0) !== (pb.core[i] ?? 0)) return (pa.core[i] ?? 0) - (pb.core[i] ?? 0)
+  if (pa.pre === pb.pre) return 0
+  if (pa.pre === null) return 1
+  if (pb.pre === null) return -1
+  // semver: dot-separated parts, numbers by value and below words, words by text
+  const xa = pa.pre.split('.')
+  const xb = pb.pre.split('.')
+  for (let i = 0; i < Math.max(xa.length, xb.length); i++) {
+    const x = xa[i]
+    const y = xb[i]
+    if (x === undefined) return -1
+    if (y === undefined) return 1
+    if (x === y) continue
+    const nx = /^\d+$/.test(x)
+    const ny = /^\d+$/.test(y)
+    if (nx && ny) return Number(x) - Number(y)
+    if (nx) return -1
+    if (ny) return 1
+    return x < y ? -1 : 1
+  }
   return 0
 }
 
