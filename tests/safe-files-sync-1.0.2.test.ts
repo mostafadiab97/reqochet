@@ -36,4 +36,11 @@ describe('atomic writes are flushed before the rename (1.0.2, A-07)', () => {
     expect(readFileSync(join(dir, 'REQ-2.md'), 'utf8')).toBe('bytes\n')
     expect(readdirSync(dir).filter((n) => n.endsWith('.tmp'))).toEqual([])
   })
+  it('flush: false (bulk writes) renames without the flush', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'rq-sync-'))
+    order.length = 0
+    await writeFileAtomic(join(dir, 'REQ-3.md'), 'bulk\n', { flush: false })
+    expect(order).toEqual(['rename'])
+    expect(readFileSync(join(dir, 'REQ-3.md'), 'utf8')).toBe('bulk\n')
+  })
 })

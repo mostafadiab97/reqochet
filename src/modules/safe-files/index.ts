@@ -33,6 +33,12 @@ export interface AtomicWriteOptions {
   mkdir?: boolean
   /** For tests: the retry waits. */
   waits?: readonly number[]
+  /**
+   * Flush the file to the disk before the rename (default true, A-07). Bulk writes pass false: a flush costs ~6 ms per
+   * file on Windows (an import of 10,000 items took 76 s instead of 9 s — the 1.0.2 release run), and a bulk change can
+   * be redone, while a single save is what the user just typed.
+   */
+  flush?: boolean
 }
 
 /**
@@ -48,7 +54,7 @@ export async function writeFileAtomic(file: string, content: string | Uint8Array
     const handle = await open(tmp, 'w')
     try {
       await (typeof content === 'string' ? handle.writeFile(content, 'utf8') : handle.writeFile(content))
-      await handle.sync()
+      if (options.flush !== false) await handle.sync()
     } finally {
       await handle.close()
     }

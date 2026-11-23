@@ -87,7 +87,8 @@ export function createItemOps(ctx: WorkspaceContext, links: LinkOps, structure: 
       try {
         const was = revision === null ? undefined : s.index.get(clean.id)
         const indexBefore = s.index.revision()
-        await s.repo.writeItem(clean, { expectedRevision: revision })
+        // what the user just typed: flushed to the disk before it replaces the old file (A-07)
+        await s.repo.writeItem(clean, { expectedRevision: revision, flush: true })
         await s.index.syncPaths(s.repo, [s.repo.itemPath(clean.id, clean.document)])
         // a text or field change leaves every outline number as it was: keep them instead of renumbering 50,000
         // items for the reply

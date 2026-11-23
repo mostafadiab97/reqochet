@@ -50,6 +50,8 @@ await scenario('E2E comfort', async (ctx) => {
   await row('Door lock').click({ button: 'right' })
   await win.getByRole('menuitem', { name: 'Duplicate', exact: true }).click()
   await win.locator('.table-notice--ok', { hasText: 'Copy made' }).waitFor()
+  // the table refreshes just after the notice: wait for the second row (counted at once, it failed under load, 1.0.2)
+  await win.locator('.table__row', { hasText: 'Door lock' }).nth(1).waitFor({ timeout: 10_000 }).catch(() => undefined)
   check((await win.locator('.table__row', { hasText: 'Door lock' }).count()) === 2, 'a copy appears right below the original')
   await t.shot('comfort-2-duplicated')
 

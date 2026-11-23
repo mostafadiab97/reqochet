@@ -60,7 +60,7 @@ const revisionOf = (content: string): string => createHash('sha1').update(conten
 const exists = async (p: string): Promise<boolean> => (await stat(p).catch(() => null)) !== null
 
 /** Temporary file + rename, retried while Windows briefly locks the file (see modules/safe-files). */
-const atomicWrite = (file: string, content: string): Promise<void> => writeFileAtomic(file, content)
+const atomicWrite = (file: string, content: string, flush = true): Promise<void> => writeFileAtomic(file, content, { flush })
 
 /** Runs `fn` over `inputs` with at most `limit` in flight (keeps 50k file reads from exhausting handles). */
 async function mapLimit<T, R>(inputs: T[], limit: number, fn: (t: T) => Promise<R>): Promise<R[]> {
@@ -411,7 +411,8 @@ export function createFileRepositoryStore(defaultSchemaFile: string): Repository
         if (current && !current.ok) throw new Error(`${basename(file)} cannot be read (${current.error}); fix it before saving over it.`)
         await mkdir(dirname(file), { recursive: true })
         const content = serializeItem(item, schema)
-        await atomicWrite(file, content)
+        // flushed only for a single save (the editor's), not for bulk writes (import, change many…) — see writeFileAtomic
+        await atomicWrite(file, content, options.flush === true)
         return revisionOf(content)
       },
 
