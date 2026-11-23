@@ -8,6 +8,7 @@ import type { RequirementsRepo } from '../repository-store'
 import { documentOfPath, type CoverageRule, type ItemIssue } from '../../shared/domain'
 import { T } from '../../shared/text'
 import type { IndexCache, IndexedItem, ItemQuery, LinkRef, QueryResult, SyncStats } from './index'
+import { MAX_ITEM_TYPES, MAX_REQUIRED } from '../schema'
 
 /** Bump when the table layout changes; an old cache file is then rebuilt automatically. */
 const FORMAT_VERSION = '5'
@@ -411,7 +412,10 @@ export function createSqliteIndexCache(dbFile: string): IndexCache {
     if (q.incomplete) {
       // items missing a required field of their type; title and text are columns, the rest item_fields
       const ors: string[] = []
-      for (const [type, fields] of Object.entries(q.required ?? {})) {
+      // at most 200 types × 50 fields: a pulled schema with thousands made "Expression tree is too large" (SEC-WP3-18;
+      // the schema keeps them all, the parser warns)
+      for (const [type, all] of Object.entries(q.required ?? {}).slice(0, MAX_ITEM_TYPES)) {
+        const fields = all.slice(0, MAX_REQUIRED)
         const missing = fields.map((f) => {
           if (f === 'title') return `trim(i.title, ${BLANKS}) = ''`
           if (f === 'text') return `trim(i.text, ${BLANKS}) = ''`

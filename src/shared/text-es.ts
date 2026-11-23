@@ -1363,6 +1363,7 @@ export const es: Texts = {
     fileNameWrong: (path: string, id: string) => `El archivo ${path} contiene ${id}; debería llamarse ${id}.md.`,
     fileUnreadable: 'No se pudo leer este archivo.',
     readFailed: (why: string) => `No se pudo leer el archivo: ${why}`,
+    notPutBack: (why: string, paths: string[]) => `${why} No se pudieron restaurar estos archivos: ${paths.join(', ')}. Revíselos antes de continuar.`,
     notPlainFile: 'No es un archivo normal (es un enlace o una carpeta): no se leyó.',
     fileTooLarge: (mb: number) => `El archivo supera los ${mb} MB: no se leyó.`,
     noRequirementsFolder: (root: string, missing: string) => `No hay carpeta de requisitos en ${root} (falta ${missing}).`,

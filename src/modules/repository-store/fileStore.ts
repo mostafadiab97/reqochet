@@ -246,7 +246,7 @@ export function createFileRepositoryStore(defaultSchemaFile: string): Repository
         })
         const text = doc.toString({ lineWidth: 0 })
         // a template field value this version cannot read was there before and is kept as written: not a reason to refuse
-        const own = parseSchema(text).problems.filter((p) => /^(itemTypes|linkTypes)/.test(p.path) && !p.path.includes('.template.fields.'))
+        const own = parseSchema(text).problems.filter((p) => p.severity !== 'warning' && /^(itemTypes|linkTypes)/.test(p.path) && !p.path.includes('.template.fields.'))
         if (own.length > 0) throw new Error(own.map((p) => `${p.path}: ${p.message}`).join(' '))
         await atomicWrite(schemaFile, text)
       },

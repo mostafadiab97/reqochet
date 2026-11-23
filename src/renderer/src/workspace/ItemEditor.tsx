@@ -89,6 +89,9 @@ export function ItemEditor(props: {
       setForm(d?.item ?? null)
       setIssues(d?.issues ?? [])
       if (d && target.askDelete) setConfirmDelete(true)
+    }, () => {
+      // a failed read: "could not be read", not an endless busy panel (review 1.0.2, CR102-06)
+      if (live) setAnsweredFor(target.id)
     })
     return () => {
       live = false
@@ -145,7 +148,7 @@ export function ItemEditor(props: {
       setBase(d.item)
       setForm(d.item)
       setIssues(d.issues)
-    })
+    }, () => undefined) // a failed refresh keeps what is shown
     return () => {
       live = false
     }

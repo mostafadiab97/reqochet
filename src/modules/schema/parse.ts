@@ -32,13 +32,18 @@ function labelsOf(v: unknown, path: string, add: (path: string, message: string)
 /** Limits for coverage rules: one SQL query checks them all. */
 export const MAX_RULES = 100
 export const MAX_FROM = 20
-/** Limits for a pulled schema: the "incomplete" filter checks every type's required fields in one SQL query (1.0.2, SEC-WP3-18). */
+/**
+ * Limits of the "incomplete" filter, which checks every type's required fields in one SQL query (1.0.2, SEC-WP3-18).
+ * The schema itself keeps everything — saving Types or Fields writes the parsed lists back, so dropping entries here
+ * would delete them from schema.yaml (review 1.0.2, CR102-01); only the filter stops at these limits, with a warning.
+ */
 export const MAX_ITEM_TYPES = 200
 export const MAX_REQUIRED = 50
 
 export function parseSchema(text: string): ParsedSchema {
   const problems: SchemaProblem[] = []
   const add = (path: string, message: string): void => void problems.push({ path, message })
+  const warn = (path: string, message: string): void => void problems.push({ path, message, severity: 'warning' })
 
   let raw: unknown
   try {
@@ -64,9 +69,9 @@ export function parseSchema(text: string): ParsedSchema {
 
   // ---- item types
   const itemTypes: ItemTypeDef[] = []
+  let withRequired = 0
   list('itemTypes').forEach((v, i) => {
     const p = `itemTypes[${i}]`
-    if (i >= MAX_ITEM_TYPES) return i === MAX_ITEM_TYPES ? add('itemTypes', `At most ${MAX_ITEM_TYPES} item types; the rest are ignored.`) : undefined
     if (!isObj(v)) return add(p, 'Must be a mapping with id and name.')
     const id = str(v.id)
     if (!id || !ID_RE.test(id)) return add(`${p}.id`, 'Must be lower-case letters, digits and dashes, e.g. "system-requirement".')
@@ -75,12 +80,11 @@ export function parseSchema(text: string): ParsedSchema {
     const short = str(v.short)
     const labels = labelsOf(v.labels, `${p}.labels`, add)
     // required fields: a list of field ids; checked against the field list below
-    let required = Array.isArray(v.required) ? v.required.filter((x): x is string => typeof x === 'string' && x.trim() !== '').map((x) => x.trim()) : undefined
+    const required = Array.isArray(v.required) ? v.required.filter((x): x is string => typeof x === 'string' && x.trim() !== '').map((x) => x.trim()) : undefined
     if (v.required !== undefined && !Array.isArray(v.required)) add(`${p}.required`, 'Must be a list of field ids, e.g. [status, priority].')
-    if (required && required.length > MAX_REQUIRED) {
-      add(`${p}.required`, `At most ${MAX_REQUIRED} required fields; the rest are ignored.`)
-      required = required.slice(0, MAX_REQUIRED)
-    }
+    // only types with required fields enter the filter (review 1.0.2, CR102-17)
+    if (required && required.length > 0 && ++withRequired === MAX_ITEM_TYPES + 1) warn('itemTypes', `More than ${MAX_ITEM_TYPES} item types with required fields: the "incomplete" filter checks only the first ${MAX_ITEM_TYPES}.`)
+    if (required && required.length > MAX_REQUIRED) warn(`${p}.required`, `More than ${MAX_REQUIRED} required fields: the "incomplete" filter checks only the first ${MAX_REQUIRED}.`)
     // 0.28.0 (A8): a template — a starting text and field values; the field values are checked against the fields below
     let template: ItemTypeDef['template']
     if (v.template !== undefined && v.template !== null) {

@@ -78,7 +78,11 @@ await scenario('E2E fixes', async (ctx) => {
   await win.mouse.down()
   await win.mouse.move(grip.x + 80, grip.y + grip.height / 2, { steps: 5 })
   await win.mouse.up()
-  await win.waitForTimeout(250) // let the new width render (flaky under load)
+  // the drag is over once its width is saved (a fixed 250 ms was too short on a busy Windows runner, 1.0.2)
+  await win
+    .waitForFunction(() => /"number":\d+/.test(Object.entries(localStorage).find(([k]) => k.startsWith('reqman.columns:'))?.[1] ?? ''), null, { timeout: 10_000 })
+    .catch(() => undefined) // checked below with its own message
+  await win.waitForFunction(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))) // rendered
   const after = await numberHead.boundingBox()
   check(Math.abs(after.width - before.width - 80) < 6, `dragging widens the column (${Math.round(before.width)} → ${Math.round(after.width)} px)`)
   const cell = await win.locator('.table__row[data-id]').first().locator('.table__td--number').boundingBox() // No. is the first column since 0.15
@@ -141,8 +145,10 @@ await scenario('E2E fixes', async (ctx) => {
   await win.waitForTimeout(500) // the table settles after opening the item (it scrolls it into view)
   await row('Requirement 2.1.2').dragTo(row('Section 2.2'))
   await win.waitForFunction(() => document.querySelectorAll('.table__row--chosen').length === 2)
-  await win.waitForTimeout(500)
-  check(movedIds.every((id) => readFileSync(join(items, `${id}.md`), 'utf8').includes(`parent: ${sectionId}`)), 'dragging one chosen row moves both under the new parent')
+  // both files written: polled up to 10 s (a fixed 500 ms failed once with two scenarios running at a time, 1.0.2)
+  const movedBoth = () => movedIds.every((id) => readFileSync(join(items, `${id}.md`), 'utf8').includes(`parent: ${sectionId}`))
+  for (let waited = 0; !movedBoth() && waited < 10_000; waited += 100) await win.waitForTimeout(100)
+  check(movedBoth(), 'dragging one chosen row moves both under the new parent')
   await win.getByRole('button', { name: /^Changes/ }).click()
   await view.locator('.compare__file').first().waitFor()
   await view.getByRole('group', { name: 'Discard several' }).getByLabel('All').check()

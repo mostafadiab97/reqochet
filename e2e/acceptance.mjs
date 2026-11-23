@@ -11,7 +11,7 @@
 // 4. Pushes one real commit to a scratch branch, checks it arrived, deletes the branch.
 // Every action is listed, numbered, in the summary — nothing happens that is not written down there.
 import { execFileSync, spawnSync } from 'node:child_process'
-import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
@@ -62,8 +62,9 @@ const killApp = () => {
   spawnSync('taskkill', ['/IM', `${PRODUCT}.exe`, '/F'], { stdio: 'ignore' })
   spawnSync('taskkill', ['/IM', 'ReqMan.exe', '/F'], { stdio: 'ignore' })
 }
-// the installed app, the installers and every Git process they start see no CI token: it is needed only inside the push
-// URL used by this script's own git calls (1.0.2, SEC-WP3-03)
+// the installed app and the installers get no CI token in their environment (1.0.2, SEC-WP3-03). The one place the token
+// still reaches the app is the push test's temporary repository: its `origin` URL carries it, because the real push
+// needs it; that folder is deleted at the end of the step (review 1.0.2, SEC-102-03)
 const appEnv = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(GH_TOKEN|GITHUB_TOKEN|GH_ENTERPRISE_TOKEN|ACTIONS_RUNTIME_TOKEN|ACTIONS_ID_TOKEN_REQUEST_TOKEN)$/.test(k)))
 const runInstaller = (file) => execFileSync(file, ['/S'], { stdio: 'ignore', timeout: 300_000, env: appEnv })
 // a test build "1.0.2-next.1" (public next branch, 1.0.2) is newer than 1.0.1 and older than 1.0.2
@@ -271,6 +272,8 @@ async function step4Push() {
     if (del.status === 0) did(`Deleted the scratch branch "${branch}" on GitHub again.`)
     else if (/remote ref does not exist/.test(del.stderr)) did(`Scratch branch "${branch}" was not on GitHub — nothing to delete.`)
     else fail(`Could not delete the scratch branch "${branch}": ${secret(del.stderr)}`)
+    // its .git/config holds the token in the origin URL
+    rmSync(repo, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 })
   }
 }
 

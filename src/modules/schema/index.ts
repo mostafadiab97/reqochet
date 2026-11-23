@@ -2,7 +2,7 @@
 // Responsibility: the project's configurable model — item types, fields and link types — read from
 // requirements/.reqman/schema.yaml, validated so that a mistake in the file never breaks the app.
 import type { Schema, SchemaProblem } from '../../shared/domain'
-import { parseSchema, BUILT_IN_PROPERTIES } from './parse'
+import { parseSchema, BUILT_IN_PROPERTIES, MAX_ITEM_TYPES, MAX_REQUIRED } from './parse'
 
 export type { CoverageRule, FieldType, ItemTypeDef, FieldDef, LinkTypeDef, Schema, SchemaProblem } from '../../shared/domain'
 
@@ -12,5 +12,5 @@ export interface ParsedSchema {
   problems: SchemaProblem[]
 }
 
-export { parseSchema, BUILT_IN_PROPERTIES }
+export { parseSchema, BUILT_IN_PROPERTIES, MAX_ITEM_TYPES, MAX_REQUIRED }
 export { starterRules } from './rules'

@@ -1365,6 +1365,7 @@ export const de: Texts = {
     fileNameWrong: (path: string, id: string) => `Die Datei ${path} enthält ${id}; sie sollte ${id}.md heißen.`,
     fileUnreadable: 'Diese Datei konnte nicht gelesen werden.',
     readFailed: (why: string) => `Die Datei konnte nicht gelesen werden: ${why}`,
+    notPutBack: (why: string, paths: string[]) => `${why} Diese Dateien konnten nicht wiederhergestellt werden: ${paths.join(', ')}. Prüfen Sie sie, bevor Sie weitermachen.`,
     notPlainFile: 'Keine einfache Datei (eine Verknüpfung oder ein Ordner): nicht gelesen.',
     fileTooLarge: (mb: number) => `Die Datei ist größer als ${mb} MB: nicht gelesen.`,
     noRequirementsFolder: (root: string, missing: string) => `Kein Anforderungsordner in ${root} (es fehlt ${missing}).`,

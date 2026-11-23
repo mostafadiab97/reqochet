@@ -46,6 +46,15 @@ describe('the editor while an item loads (1.0.2, CRA-09)', () => {
     })
     expect(host.textContent).toContain(T.editor.unreadable)
   })
+  it('a read that throws: the message, not an endless busy panel (CR102-06)', async () => {
+    const host = open(async () => {
+      throw new Error('window call failed')
+    })
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(host.textContent).toContain(T.editor.unreadable)
+  })
   it('a failed read after waiting: the message, not an endless busy panel', async () => {
     const host = open(vi.fn(async () => null))
     await act(async () => {

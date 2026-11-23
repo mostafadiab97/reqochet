@@ -73,6 +73,24 @@ describe('Git adapter hardening (1.0.2)', () => {
     expect(sh(root, 'ls-files').split('\n')).toEqual(['requirements/items/REQ-1.md'])
   })
 
+  it('CR102-03: a kept .tmp copy is not a change — Discard and status leave it alone', async () => {
+    const root = temp()
+    sh(root, 'init', '-q', '-b', 'main')
+    mkdirSync(join(root, 'requirements', 'items'), { recursive: true })
+    writeFileSync(join(root, 'requirements', 'items', 'REQ-1.md'), 'one\n')
+    sh(root, 'add', '-A')
+    sh(root, 'commit', '-q', '-m', 'one')
+    const kept = join(root, 'requirements', 'items', 'REQ-1.md.a1b2c3d4.tmp')
+    writeFileSync(kept, 'the only copy of what was typed\n')
+    writeFileSync(join(root, 'requirements', 'items', 'REQ-2.md'), 'two\n')
+    const st = await git.status(root, 'requirements')
+    expect(st.changes.map((c) => c.path)).toEqual(['requirements/items/REQ-2.md'])
+    // the uncommitted side of a comparison agrees with the status (CR102-15)
+    expect((await git.diffNameStatus(root, 'HEAD', null, 'requirements')).map((d) => d.path)).toEqual(['requirements/items/REQ-2.md'])
+    await git.discard(root, st.changes.map((c) => c.path))
+    expect(readFileSync(kept, 'utf8')).toBe('the only copy of what was typed\n')
+  })
+
   it('SEC-WP3-04: a remote name starting with "-" never reaches the command line', async () => {
     const root = temp()
     sh(root, 'init', '-q', '-b', 'main')

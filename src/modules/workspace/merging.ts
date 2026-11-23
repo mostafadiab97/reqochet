@@ -426,11 +426,25 @@ export function createMerging(deps: MergingDeps) {
             // a renamed file: its old path comes back too, as Discard in Changes does
             const fromOf = new Map((await git.status(root, reqPath(s.repo))).changes.filter((c) => c.kind === 'renamed' && c.from).map((c) => [c.path, c.from as string]))
             const all = [...new Set(paths.flatMap((p) => (fromOf.has(p) ? [p, fromOf.get(p) as string] : [p])))]
-            before = new Map(await Promise.all(all.map(async (p) => [p, await readFile(join(root, p)).catch(() => null)] as const)))
+            // only "not there" counts as absent; any other read error (a Windows lock…) stops before anything is thrown
+            // away (review 1.0.2, CR102-02)
+            before = new Map(
+              await Promise.all(
+                all.map(async (p) => {
+                  try {
+                    return [p, await readFile(join(root, p))] as const
+                  } catch (e) {
+                    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return [p, null] as const
+                    throw e
+                  }
+                })
+              )
+            )
             await git.discard(root, all)
           } catch (e) {
-            if (before) await putBack(root, before)
-            return fail(s, explainGitError(e))
+            const lost = before ? await putBack(root, before) : []
+            if (lost.length > 0) log.error(`Could not put back after a refused switch: ${lost.join(', ')}`)
+            return fail(s, lost.length > 0 ? T.coreMsg.notPutBack(explainGitError(e), lost) : explainGitError(e))
           }
         } else {
           // safe only when the other branch has the same committed version of every changed file
@@ -443,7 +457,11 @@ export function createMerging(deps: MergingDeps) {
         if (ref.kind === 'remote' && !localExists) await git.switchBranch(root, local, { startPoint: name, track: true })
         else await git.switchBranch(root, target)
       } catch (e) {
-        if (before) await putBack(root, before)
+        const lost = before ? await putBack(root, before) : []
+        if (lost.length > 0) {
+          log.error(`Could not put back after a refused switch: ${lost.join(', ')}`)
+          return fail(s, T.coreMsg.notPutBack(explainGitError(e), lost))
+        }
         const over = e instanceof GitError ? parseOverwrittenFiles(e.stderr) : []
         if (over.length > 0) return fail(s, T.merge.blocking, over.map((x) => toChange(s, { path: x, kind: 'modified' })))
         return fail(s, explainGitError(e))
@@ -498,10 +516,16 @@ export function createMerging(deps: MergingDeps) {
   }
 }
 
-/** Puts files back exactly as they were (content, or absent) after a refused branch switch (1.0.2, A-10). */
-async function putBack(root: string, before: Map<string, Buffer | null>): Promise<void> {
+/**
+ * Puts files back exactly as they were (content, or absent) after a refused branch switch (1.0.2, A-10); answers the
+ * paths it could not put back (CR102-04: they used to be lost without a word). What was staged is not restored — the
+ * changes show as unstaged afterwards (CR102-05, documented).
+ */
+async function putBack(root: string, before: Map<string, Buffer | null>): Promise<string[]> {
+  const lost: string[] = []
   for (const [path, content] of before) {
     const file = join(root, path)
-    await (content === null ? removeFile(file) : writeFileAtomic(file, content, { mkdir: true })).catch(() => undefined)
+    await (content === null ? removeFile(file) : writeFileAtomic(file, content, { mkdir: true })).catch(() => void lost.push(path))
   }
+  return lost
 }

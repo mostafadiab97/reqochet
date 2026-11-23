@@ -808,6 +808,12 @@ code {
   background: var(--rm-color-row-hover);
 }
 
+/* the keyboard's item is outlined, not only filled like the mouse's (review 1.0.2, UI-1 — WCAG 1.4.11) */
+.row-menu__item:focus-visible {
+  outline: 2px solid var(--rm-color-focus);
+  outline-offset: -2px;
+}
+
 .check--nested {
   margin-inline-start: var(--rm-space-lg);
 }
@@ -4360,6 +4366,7 @@ div.cell-contents {
 /* a rule with nothing to check yet: a dashed frame, not faded words (fading broke the text contrast, 1.0.2) */
 .trace__rule--idle {
   border-style: dashed;
+  border-color: var(--rm-color-border-strong); /* easier to see on the grey panel (review 1.0.2, UI-3) */
 }
 .trace__bar-fill--warning {
   background: var(--rm-color-warning);
@@ -4450,6 +4457,8 @@ div.cell-contents {
   border-color: var(--rm-color-danger);
 }
 .btn--warn,
+/* again after the general .btn border above (line ~4424), which would otherwise win — not a duplicate (review 1.0.2,
+   UI-2) */
 .btn--clear-filters {
   border-color: var(--rm-color-warning);
 }
@@ -4966,6 +4975,11 @@ select:not([multiple]) {
 .menu-btn__item:focus-visible {
   outline: none;
   background: var(--rm-color-row-hover);
+}
+
+.menu-btn__item:focus-visible {
+  outline: 2px solid var(--rm-color-focus);
+  outline-offset: -2px;
 }
 
 .menu-btn__item:disabled {

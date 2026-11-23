@@ -1364,6 +1364,7 @@ export const fr: Texts = {
     fileNameWrong: (path: string, id: string) => `Le fichier ${path} contient ${id}\u00A0; il devrait s’appeler ${id}.md.`,
     fileUnreadable: 'Ce fichier n’a pas pu être lu.',
     readFailed: (why: string) => `Impossible de lire le fichier\u00A0: ${why}`,
+    notPutBack: (why: string, paths: string[]) => `${why} Ces fichiers n’ont pas pu être remis comme avant\u00A0: ${paths.join(', ')}. Vérifiez-les avant de continuer.`,
     notPlainFile: 'Pas un fichier ordinaire (un lien ou un dossier)\u00A0: non lu.',
     fileTooLarge: (mb: number) => `Le fichier dépasse ${mb}\u00A0Mo\u00A0: non lu.`,
     noRequirementsFolder: (root: string, missing: string) => `Aucun dossier d’exigences dans ${root} (${missing} manquant).`,

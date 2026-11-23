@@ -282,7 +282,10 @@ export function createSystemGitAdapter(run: CommandRunner = defaultRunner): GitA
 
     async status(root, pathspec) {
       const out = await git(root, ['status', '--porcelain=v2', '--branch', '-z', '--untracked-files=all', '--', pathspec])
-      return parseStatusV2(out)
+      const st = parseStatusV2(out)
+      // an untracked `.tmp` file is a save in progress or the only copy left after a failed rename: not a change to
+      // discard, switch away or commit (review 1.0.2, CR102-03 — Discard deleted it)
+      return { ...st, changes: st.changes.filter((c) => !(c.kind === 'added' && c.path.endsWith('.tmp') && !c.staged)) }
     },
 
     async remotes(root) {
@@ -649,7 +652,8 @@ export function createSystemGitAdapter(run: CommandRunner = defaultRunner): GitA
       }
       if (!to) {
         const untracked = (await git(root, ['ls-files', '--others', '--exclude-standard', '-z', '--', pathspec])).split('\0').filter(Boolean)
-        for (const p of untracked) out.push({ status: 'A', path: p, oldOid: null, newOid: null })
+        // untracked `.tmp` files are left out, as in status (review 1.0.2, CR102-15)
+        for (const p of untracked) if (!p.endsWith('.tmp')) out.push({ status: 'A', path: p, oldOid: null, newOid: null })
       }
       return out
     },

@@ -1385,6 +1385,7 @@ const en = {
     fileNameWrong: (path: string, id: string) => `The file ${path} holds ${id}; it should be named ${id}.md.`,
     fileUnreadable: 'This file could not be read.',
     readFailed: (why: string) => `Could not read the file: ${why}`,
+    notPutBack: (why: string, paths: string[]) => `${why} These files could not be put back as they were: ${paths.join(', ')}. Check them before you continue.`,
     notPlainFile: 'Not a plain file (a link or a folder): not read.',
     fileTooLarge: (mb: number) => `The file is larger than ${mb} MB: not read.`,
     noRequirementsFolder: (root: string, missing: string) => `No requirements folder in ${root} (missing ${missing}).`,

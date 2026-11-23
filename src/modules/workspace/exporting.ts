@@ -5,7 +5,7 @@ import { T } from '../../shared/text'
 import type { ExportFormat, ExportItemsRequest } from '../../shared/api'
 import { compareToCsv, compareToMarkdown, compareToSheet, itemsToCsv, itemsToDocx, itemsToHtml, itemsToMarkdown, itemsToSheet, writeReqif, writeXlsx, type DocumentData, type ExportColumn, type ExportItem, type TraceRow } from '../import-export'
 import { queryAll, withRequired, type WorkspaceContext } from './context'
-import type { createCompare } from './compare'
+import { readChecked, type createCompare } from './compare'
 import { depthOf, type StructureOps } from './structure'
 
 export function createExportOps(ctx: WorkspaceContext, structure: StructureOps, compare: ReturnType<typeof createCompare>) {
@@ -107,13 +107,10 @@ export function createExportOps(ctx: WorkspaceContext, structure: StructureOps, 
                 if (typeof src === 'string') sourceIds.set(r.item.id, src)
                 return
               }
-              let raw: string
-              try {
-                raw = await readFile(join(s.repo.folder, r.item.path), 'utf8')
-              } catch {
-                return // gone since the index saw it: exported without a source ID
-              }
-              if (!raw.includes('source-id')) return
+              // a plain file of at most 5 MB, links not followed — the checks of readAt (review 1.0.2, CR102-07 /
+              // SEC-102-04); gone, too large or a link: exported without a source ID
+              const raw = await readChecked(join(s.repo.folder, r.item.path))
+              if (raw === null || !raw.includes('source-id')) return
               const f = await s.repo.readItemFile(r.item.path)
               const src = f.ok ? f.item.extra['source-id'] : undefined
               if (typeof src === 'string') sourceIds.set(r.item.id, src)
