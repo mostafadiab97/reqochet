@@ -4,7 +4,7 @@
 // and change the single line in src/main/composition.ts.
 // Paths given to and returned by these methods are relative to the repository top folder, with forward slashes.
 import type { GitInfo } from '../../shared/api'
-import { createSystemGitAdapter, GitError, parseOverwrittenFiles, parseStatusV2, PUSH_NO_UPSTREAM, PUSH_OTHER_NAME, readBlobs } from './systemGit'
+import { createSystemGitAdapter, GitError, parseOverwrittenFiles, parseStatusV2, PUSH_BAD_REMOTE, PUSH_NO_UPSTREAM, PUSH_OTHER_NAME, readBlobs } from './systemGit'
 
 export interface FileChange {
   path: string
@@ -131,7 +131,10 @@ export interface GitAdapter {
   /** Switches to a branch; `create` makes it first (from `startPoint`, following it when `track`). */
   switchBranch(root: string, name: string, create?: { startPoint: string; track: boolean }): Promise<void>
   /** Never forces. `setUpstream` publishes a branch that has no remote branch yet. */
-  push(root: string, setUpstream?: { remote: string; branch: string }): Promise<void>
+  /** Pushes the current branch; answers the remote it went to. */
+  push(root: string, setUpstream?: { remote: string; branch: string }): Promise<string | void>
+  /** The remote a plain push of the current branch goes to (pushRemote / pushDefault, else the upstream's), or null. */
+  pushRemote?(root: string): Promise<string | null>
   /** Commits that changed this file, newest first, following renames. */
   log(root: string, path: string, limit?: number): Promise<CommitInfo[]>
   /** File content at a commit, or null if the file did not exist there. */
@@ -196,5 +199,5 @@ export interface GitAdapter {
   addRemote(root: string, name: string, url: string): Promise<void>
 }
 
-export { createSystemGitAdapter, GitError, parseOverwrittenFiles, parseStatusV2, PUSH_NO_UPSTREAM, PUSH_OTHER_NAME, readBlobs }
+export { createSystemGitAdapter, GitError, parseOverwrittenFiles, parseStatusV2, PUSH_BAD_REMOTE, PUSH_NO_UPSTREAM, PUSH_OTHER_NAME, readBlobs }
 export type { CommandRunner, RunOptions } from './systemGit'

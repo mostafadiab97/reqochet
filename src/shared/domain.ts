@@ -87,6 +87,8 @@ export interface SchemaProblem {
   /** Where in the file, e.g. "fields[2].options". */
   path: string
   message: string
+  /** A notice that does not make the schema wrong (e.g. the "incomplete" filter's limits, 1.0.2): never blocks a save. */
+  severity?: 'warning'
 }
 
 // ---------- items

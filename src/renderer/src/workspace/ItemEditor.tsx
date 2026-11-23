@@ -46,6 +46,8 @@ export function ItemEditor(props: {
   const { schema, target, onDirtyChange, reloadToken, onMoved } = props
   // The editor is re-created (keyed) for every target, so a draft can start its state directly.
   const [details, setDetails] = useState<ItemDetails | null>(null)
+  /** The item whose answer arrived: until then "could not be read" is not shown (1.0.2, CRA-09 — it flashed on every open). */
+  const [answeredFor, setAnsweredFor] = useState<string | null>(null)
   const [base, setBase] = useState<Item | null>(null)
   const [form, setForm] = useState<Item | null>(target.kind === 'draft' ? target.item : null)
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
@@ -70,6 +72,7 @@ export function ItemEditor(props: {
     }
     const d = await window.reqochet.getItem(target.id)
     setDetails(d)
+    setAnsweredFor(target.id)
     setBase(d?.item ?? null)
     setForm(d?.item ?? null)
     setIssues(d?.issues ?? [])
@@ -81,10 +84,14 @@ export function ItemEditor(props: {
     void window.reqochet.getItem(target.id).then((d) => {
       if (!live) return
       setDetails(d)
+      setAnsweredFor(target.id)
       setBase(d?.item ?? null)
       setForm(d?.item ?? null)
       setIssues(d?.issues ?? [])
       if (d && target.askDelete) setConfirmDelete(true)
+    }, () => {
+      // a failed read: "could not be read", not an endless busy panel (review 1.0.2, CR102-06)
+      if (live) setAnsweredFor(target.id)
     })
     return () => {
       live = false
@@ -141,7 +148,7 @@ export function ItemEditor(props: {
       setBase(d.item)
       setForm(d.item)
       setIssues(d.issues)
-    })
+    }, () => undefined) // a failed refresh keeps what is shown
     return () => {
       live = false
     }
@@ -212,6 +219,7 @@ export function ItemEditor(props: {
   }, [dirty, save, isNew, form, load, onMoved, props.readOnly])
 
   if (target.kind === 'item' && details === null && form === null) {
+    if (answeredFor !== target.id) return <aside className="editor" aria-label={T.editor.label} aria-busy="true" />
     return (
       <aside className="editor" aria-label={T.editor.label}>
         <p className="muted">{T.editor.unreadable}</p>
@@ -369,8 +377,8 @@ export function ItemEditor(props: {
               className="input text-preview markdown"
               role="button"
               tabIndex={0}
+              // the spoken name is the text itself (what is shown); the tooltip tells what a click does (1.0.2, axe)
               title={T.editor.editTextTooltip}
-              aria-label={T.editor.editTextTooltip}
               onClick={(e) => {
                 // a click on a link (or on bold text inside one) opens the link, not the text box
                 if (e.target instanceof Element && e.target.closest('a')) return

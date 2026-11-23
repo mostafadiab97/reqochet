@@ -1,7 +1,7 @@
 // Reading, creating, saving and deleting single items, with the rules that need the whole repository
 // (the parent must exist and must not create a loop; saves are refused if the file changed meanwhile).
 import type { Item, ItemDetails, LinkInfo, SaveResult } from '../../shared/api'
-import { rm } from 'node:fs/promises'
+import { removeFile } from '../safe-files'
 import { join } from 'node:path'
 import { documentOfPath } from '../../shared/domain'
 import { generateId, validateItem } from '../items'
@@ -87,7 +87,8 @@ export function createItemOps(ctx: WorkspaceContext, links: LinkOps, structure: 
       try {
         const was = revision === null ? undefined : s.index.get(clean.id)
         const indexBefore = s.index.revision()
-        await s.repo.writeItem(clean, { expectedRevision: revision })
+        // what the user just typed: flushed to the disk before it replaces the old file (A-07)
+        await s.repo.writeItem(clean, { expectedRevision: revision, flush: true })
         await s.index.syncPaths(s.repo, [s.repo.itemPath(clean.id, clean.document)])
         // a text or field change leaves every outline number as it was: keep them instead of renumbering 50,000
         // items for the reply
@@ -175,17 +176,22 @@ export function createItemOps(ctx: WorkspaceContext, links: LinkOps, structure: 
         // the file must still be the one just read (NF)
         const again = await s.repo.readItemFile(copy)
         if (!again.ok || JSON.stringify(again.item) !== JSON.stringify(read.item)) return { ok: false, message: T.wsMsg.changedMeanwhile }
-        await s.repo.writeItem(item, { expectedRevision: null })
-        await rm(join(s.repo.folder, copy))
-        // children of the copy in this document now point to its new ID
+        // whatever was written is shown even when a later step fails (1.0.2, A-13: an early failure skipped the sync)
         const touched = [copy, s.repo.itemPath(newId, document)]
-        for (const childPath of s.index.query({ document, parent: id, limit: 10_000 }).items.map((c) => c.path).filter((p) => p && documentOfPath(p) === document)) {
-          const c = await s.repo.readItemAt(childPath)
-          if (!c?.ok || c.item.parent !== id) continue
-          await s.repo.writeItem({ ...c.item, parent: newId, document }, { path: childPath, expectedRevision: c.revision })
-          touched.push(childPath)
+        try {
+          await s.repo.writeItem(item, { expectedRevision: null })
+          // retried while Windows holds the file (A-13)
+          await removeFile(join(s.repo.folder, copy))
+          // children of the copy in this document now point to its new ID
+          for (const childPath of s.index.query({ document, parent: id, limit: 10_000 }).items.map((c) => c.path).filter((p) => p && documentOfPath(p) === document)) {
+            const c = await s.repo.readItemAt(childPath)
+            if (!c?.ok || c.item.parent !== id) continue
+            await s.repo.writeItem({ ...c.item, parent: newId, document }, { path: childPath, expectedRevision: c.revision })
+            touched.push(childPath)
+          }
+        } finally {
+          await s.index.syncPaths(s.repo, touched)
         }
-        await s.index.syncPaths(s.repo, touched)
         log.info(`Copied file ${copy}: ${id} → ${newId}`)
         return { ok: true, newId }
       } catch (e) {

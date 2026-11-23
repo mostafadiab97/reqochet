@@ -11,6 +11,12 @@ import { useFeature } from '../lib/features'
 export function RowMenu(props: { id: string; x: number; y: number; chosenCount: number; onExportItem: () => void; onExportChosen: () => void; onOpen: () => void; onClose: () => void; onAddChild?: () => void; onDelete?: () => void; onDuplicate?: () => void; onChangeChosen?: () => void }) {
   const ref = useRef<HTMLDivElement>(null)
   const exportOn = useFeature('export')
+  // the latest onClose, without re-running the effect on every parent render (1.0.2, CRA-13: each re-run put the focus
+  // back on the first item)
+  const onClose = useRef(props.onClose)
+  useEffect(() => {
+    onClose.current = props.onClose
+  })
   useEffect(() => {
     ref.current?.querySelector('button')?.focus()
     const close = (e: Event): void => {
@@ -24,7 +30,7 @@ export function RowMenu(props: { id: string; x: number; y: number; chosenCount: 
       }
       if (e instanceof KeyboardEvent && e.key !== 'Escape') return
       if (e instanceof MouseEvent && ref.current?.contains(e.target as Node)) return
-      props.onClose()
+      onClose.current()
     }
     window.addEventListener('keydown', close)
     window.addEventListener('mousedown', close)
@@ -34,16 +40,18 @@ export function RowMenu(props: { id: string; x: number; y: number; chosenCount: 
       window.removeEventListener('mousedown', close)
       window.removeEventListener('blur', close)
     }
-  }, [props])
-  // keep the menu inside the window
-  const left = Math.min(props.x, window.innerWidth - 280)
+  }, [])
+  // keep the menu inside the window; it opens towards the reading direction (right-to-left in Arabic: its right edge at
+  // the pointer) — the pointer position is physical, the placement logical (CRA-13)
+  const rtl = document.documentElement.dir === 'rtl'
+  const insetInlineStart = Math.max(0, Math.min(rtl ? window.innerWidth - props.x : props.x, window.innerWidth - 280))
   const top = Math.min(props.y, window.innerHeight - 220)
   const act = (fn: () => void) => () => {
     props.onClose()
     fn()
   }
   return (
-    <div ref={ref} className="row-menu" role="menu" aria-label={T.rowMenu.label(props.id)} style={{ left, top }}>
+    <div ref={ref} className="row-menu" role="menu" aria-label={T.rowMenu.label(props.id)} style={{ insetInlineStart, top }}>
       <button type="button" role="menuitem" className="row-menu__item" onClick={act(props.onOpen)}>
         {T.rowMenu.open}
       </button>

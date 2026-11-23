@@ -1,4 +1,4 @@
-// Input checks for every call that arrives from the window. The window is ReqMan's own code, so
+// Input checks for every call that arrives from the window. The window is the app's own code, so
 // this is about robustness: a wrong value is refused with a clear message instead of reaching a file write.
 // Each function either returns a clean value of the expected type or throws.
 import type { CoverageRule, CreateBaselineRequest, ExportItemsRequest, FieldDef, ImportSettings, ImportTarget, Item, ItemQuery, ItemsChange, ItemTypeDef, SavedView, LinkTypeDef, Link, LinkDecision, MatrixRequest, MergeAnswers, MergeChoice, MergePlan, RevertPart, SortKey, ThemeOverrides } from '../shared/api'

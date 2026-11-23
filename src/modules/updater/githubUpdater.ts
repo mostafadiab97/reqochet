@@ -1,13 +1,13 @@
 import { spawn } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { app, net } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { parse as parseYaml } from 'yaml'
 import type { UpdateStatus } from '../../shared/api'
 import type { UpdateService } from './index'
-import { checkInstaller, isOwnReleaseUrl, releaseTagOf, newerRelease, parseReleases, revertTargets, type ReleaseInfo } from './versions'
+import { checkInstaller, isOwnReleaseUrl, listedSize, MAX_CHECKSUMS_BYTES, MAX_INSTALLER_BYTES, readCapped, releaseTagOf, newerRelease, parseReleases, revertTargets, type ReleaseInfo } from './versions'
 import { T } from '../../shared/text'
 
 interface Deps {
@@ -183,8 +183,20 @@ export function createGithubUpdater({ enabled, log, holdFile, updateConfigFile }
           }
           return res
         }
-        const bytes = Buffer.from(await (await download(target.installerUrl)).arrayBuffer())
-        const sums = await (await download(target.checksumsUrl)).text()
+        // size limits as well as the time limit (1.0.2, S5): latest.yml first (small), then the installer, never more than
+        // the size latest.yml lists for it (or 512 MB when it lists none)
+        const sumsBytes = await readCapped(await download(target.checksumsUrl), MAX_CHECKSUMS_BYTES).catch((e: unknown) => {
+          log.error(`Going back to ${version}: latest.yml refused`, e)
+          throw new Error(T.coreMsg.installerNotVerified(version))
+        })
+        const sums = new TextDecoder().decode(sumsBytes)
+        const size = listedSize(sums, target.installerName)
+        const bytes = Buffer.from(
+          await readCapped(await download(target.installerUrl), Math.min(size ?? MAX_INSTALLER_BYTES, MAX_INSTALLER_BYTES)).catch((e: unknown) => {
+            log.error(`Going back to ${version}: the installer download was refused`, e)
+            throw new Error(T.coreMsg.installerNotVerified(version))
+          })
+        )
         const check = checkInstaller(bytes, sums, target.installerName)
         if (!check.ok) {
           log.error(`Going back to ${version} refused: ${check.reason}`)
@@ -214,8 +226,14 @@ export function createGithubUpdater({ enabled, log, holdFile, updateConfigFile }
         }
         child.unref()
         dir = null // the installer runs from it now: never removed from here on
-        writeFileSync(holdFile, JSON.stringify({ version, since: new Date().toISOString() }))
-        log.info(`Updates paused at ${version}; the installer is running`)
+        // the installer is already running: a failed pause must not stop the app from quitting for it (1.0.2, S8)
+        try {
+          mkdirSync(dirname(holdFile), { recursive: true })
+          writeFileSync(holdFile, JSON.stringify({ version, since: new Date().toISOString() }))
+          log.info(`Updates paused at ${version}; the installer is running`)
+        } catch (e) {
+          log.error(`Updates could not be paused at ${version} (the installer runs anyway; the next update check may offer the newer version again)`, e)
+        }
         setTimeout(() => app.quit(), 500)
         return { ok: true }
       } catch (e) {

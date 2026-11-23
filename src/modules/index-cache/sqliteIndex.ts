@@ -8,6 +8,7 @@ import type { RequirementsRepo } from '../repository-store'
 import { documentOfPath, type CoverageRule, type ItemIssue } from '../../shared/domain'
 import { T } from '../../shared/text'
 import type { IndexCache, IndexedItem, ItemQuery, LinkRef, QueryResult, SyncStats } from './index'
+import { MAX_ITEM_TYPES, MAX_REQUIRED } from '../schema'
 
 /** Bump when the table layout changes; an old cache file is then rebuilt automatically. */
 const FORMAT_VERSION = '5'
@@ -84,11 +85,13 @@ function gapSql(r: CoverageRule, params: (string | number | null)[]): string {
   params.push(r.type)
   const from = r.from?.length ? ` AND x.type IN (${r.from.map(() => '?').join(',')})` : ''
   params.push(r.link, ...(r.from ?? []))
+  // counting stops at `min` distinct linked items: "fewer than min" needs no more (1.0.2, PW-03 — the full count took
+  // most of the 0.3 s gap count at 50,000 items)
   const count =
     r.direction === 'incoming'
-      ? `(SELECT COUNT(DISTINCT x.id) FROM links l JOIN items x ON x.rid = l.rid WHERE l.target = i.id AND l.type = ?${from} AND ${NOT_OBSOLETE('x')})`
-      : `(SELECT COUNT(DISTINCT x.id) FROM links l JOIN items x ON x.id = l.target WHERE l.rid = i.rid AND l.type = ?${from} AND ${NOT_OBSOLETE('x')})`
-  params.push(r.min)
+      ? `(SELECT COUNT(*) FROM (SELECT DISTINCT x.id FROM links l JOIN items x ON x.rid = l.rid WHERE l.target = i.id AND l.type = ?${from} AND ${NOT_OBSOLETE('x')} LIMIT ?))`
+      : `(SELECT COUNT(*) FROM (SELECT DISTINCT x.id FROM links l JOIN items x ON x.id = l.target WHERE l.rid = i.rid AND l.type = ?${from} AND ${NOT_OBSOLETE('x')} LIMIT ?))`
+  params.push(r.min, r.min)
   return `(i.type = ? AND ${NOT_OBSOLETE('i')} AND ${count} < ?)`
 }
 const COUNTS = `(SELECT COUNT(*) FROM items c WHERE c.parent = i.id) AS child_count,
@@ -372,6 +375,88 @@ export function createSqliteIndexCache(dbFile: string): IndexCache {
     }
   }
 
+  /** A row as the window asks for it: the start of the text only (`brief`) or at most `textUpTo` characters. */
+  const shaped = (r: ItemRow, q: Pick<ItemQuery, 'brief' | 'textUpTo'>): IndexedItem =>
+    rowToItem(q.brief ? { ...r, text: preview(r.text) } : q.textUpTo !== undefined && r.text.length > q.textUpTo ? { ...r, text: r.text.slice(0, q.textUpTo) } : r, fieldIds)
+
+  /** The WHERE part of a query (search, filters, parent, document) with its parameters. */
+  const whereOf = (q: ItemQuery): { whereSql: string; params: (string | number | null)[] } => {
+    const where: string[] = []
+    const params: (string | number | null)[] = []
+
+    if (q.text && q.text.trim()) {
+      const fts = toFtsQuery(q.text)
+      // % and _ are LIKE wildcards: escaped, so a search for "_" finds a "_", not everything
+      const idLike = `%${likeEscape(q.text.trim().toUpperCase())}%`
+      if (fts) {
+        where.push("(i.rid IN (SELECT rowid FROM items_fts WHERE items_fts MATCH ?) OR i.id LIKE ? ESCAPE '\\')")
+        params.push(fts, idLike)
+      } else {
+        // no word to search for (only signs such as "_", "%", "#"): look for the signs themselves
+        const anyLike = `%${likeEscape(q.text.trim())}%`
+        where.push("(i.id LIKE ? ESCAPE '\\' OR i.title LIKE ? ESCAPE '\\' OR i.text LIKE ? ESCAPE '\\')")
+        params.push(idLike, anyLike, anyLike)
+      }
+    }
+    if (q.types && q.types.length > 0) {
+      where.push(`i.type IN (${q.types.map(() => '?').join(',')})`)
+      params.push(...q.types)
+    }
+    for (const [field, values] of Object.entries(q.fields ?? {})) {
+      if (values.length === 0) continue
+      where.push(`i.rid IN (SELECT rid FROM item_fields WHERE field = ? AND value IN (${values.map(() => '?').join(',')}))`)
+      params.push(field, ...values)
+    }
+    if (q.links === 'suspect') where.push(`EXISTS (${SUSPECT_SQL})`)
+    else if (q.links === 'none') where.push('NOT EXISTS (SELECT 1 FROM links l WHERE l.rid = i.rid) AND NOT EXISTS (SELECT 1 FROM links l WHERE l.target = i.id)')
+    if (q.incomplete) {
+      // items missing a required field of their type; title and text are columns, the rest item_fields
+      const ors: string[] = []
+      // at most 200 types × 50 fields: a pulled schema with thousands made "Expression tree is too large" (SEC-WP3-18;
+      // the schema keeps them all, the parser warns)
+      for (const [type, all] of Object.entries(q.required ?? {}).slice(0, MAX_ITEM_TYPES)) {
+        const fields = all.slice(0, MAX_REQUIRED)
+        const missing = fields.map((f) => {
+          if (f === 'title') return `trim(i.title, ${BLANKS}) = ''`
+          if (f === 'text') return `trim(i.text, ${BLANKS}) = ''`
+          params.push(f)
+          // INDEXED BY: without it SQLite walks every row of that field for each item (3 s at 10k, 83 s at 50k — PERF-01)
+          return `NOT EXISTS (SELECT 1 FROM item_fields x INDEXED BY item_fields_rid WHERE x.rid = i.rid AND x.field = ? AND trim(x.value, ${BLANKS}) <> '')`
+        })
+        if (missing.length === 0) continue
+        ors.push(`(i.type = ? AND (${missing.join(' OR ')}))`)
+        // the type parameter comes before its field parameters in the SQL text
+        params.splice(params.length - fields.filter((f) => f !== 'title' && f !== 'text').length, 0, type)
+      }
+      where.push(ors.length ? `(${ors.join(' OR ')})` : '0')
+    }
+    if (q.gaps) {
+      // items that break a coverage rule; the rules come from the schema through the workspace
+      const ors = (q.rules ?? []).map((r) => gapSql(r, params))
+      where.push(ors.length ? `(${ors.join(' OR ')})` : '0')
+    }
+    if (q.document !== undefined) {
+      // the document is the first folder of the path; '' = files directly in requirements/
+      // stored at indexing time (0.18.0; before: a range on the path)
+      where.push('i.doc = ?')
+      params.push(q.document)
+    }
+    if (q.parent !== undefined) {
+      if (q.parent === null) {
+        // the top level: also items whose parent is in another document or missing — a file copied by hand from
+        // another document keeps its old parent and would otherwise have no place; stored as
+        // `top` so this is an index lookup (the subquery cost 0.5 s at 50,000 items on CI)
+        where.push('i.top = 1')
+      } else {
+        // children in the parent's own document only: a hand-moved child shows at its own document's top level,
+        // not also under its old parent
+        where.push('i.parent = ? AND i.doc IN (SELECT p.doc FROM items p WHERE p.id = ?)')
+        params.push(q.parent, q.parent)
+      }
+    }
+    return { whereSql: where.length ? `WHERE ${where.join(' AND ')}` : '', params }
+  }
+
   return {
     sync: (repo) => doSync(repo, false),
 
@@ -431,77 +516,7 @@ export function createSqliteIndexCache(dbFile: string): IndexCache {
     rebuild: (repo) => doSync(repo, true),
 
     query(q: ItemQuery): QueryResult {
-      const where: string[] = []
-      const params: (string | number | null)[] = []
-
-      if (q.text && q.text.trim()) {
-        const fts = toFtsQuery(q.text)
-        // % and _ are LIKE wildcards: escaped, so a search for "_" finds a "_", not everything
-        const idLike = `%${likeEscape(q.text.trim().toUpperCase())}%`
-        if (fts) {
-          where.push("(i.rid IN (SELECT rowid FROM items_fts WHERE items_fts MATCH ?) OR i.id LIKE ? ESCAPE '\\')")
-          params.push(fts, idLike)
-        } else {
-          // no word to search for (only signs such as "_", "%", "#"): look for the signs themselves
-          const anyLike = `%${likeEscape(q.text.trim())}%`
-          where.push("(i.id LIKE ? ESCAPE '\\' OR i.title LIKE ? ESCAPE '\\' OR i.text LIKE ? ESCAPE '\\')")
-          params.push(idLike, anyLike, anyLike)
-        }
-      }
-      if (q.types && q.types.length > 0) {
-        where.push(`i.type IN (${q.types.map(() => '?').join(',')})`)
-        params.push(...q.types)
-      }
-      for (const [field, values] of Object.entries(q.fields ?? {})) {
-        if (values.length === 0) continue
-        where.push(`i.rid IN (SELECT rid FROM item_fields WHERE field = ? AND value IN (${values.map(() => '?').join(',')}))`)
-        params.push(field, ...values)
-      }
-      if (q.links === 'suspect') where.push(`EXISTS (${SUSPECT_SQL})`)
-      else if (q.links === 'none') where.push('NOT EXISTS (SELECT 1 FROM links l WHERE l.rid = i.rid) AND NOT EXISTS (SELECT 1 FROM links l WHERE l.target = i.id)')
-      if (q.incomplete) {
-        // items missing a required field of their type; title and text are columns, the rest item_fields
-        const ors: string[] = []
-        for (const [type, fields] of Object.entries(q.required ?? {})) {
-          const missing = fields.map((f) => {
-            if (f === 'title') return `trim(i.title, ${BLANKS}) = ''`
-            if (f === 'text') return `trim(i.text, ${BLANKS}) = ''`
-            params.push(f)
-            // INDEXED BY: without it SQLite walks every row of that field for each item (3 s at 10k, 83 s at 50k — PERF-01)
-            return `NOT EXISTS (SELECT 1 FROM item_fields x INDEXED BY item_fields_rid WHERE x.rid = i.rid AND x.field = ? AND trim(x.value, ${BLANKS}) <> '')`
-          })
-          if (missing.length === 0) continue
-          ors.push(`(i.type = ? AND (${missing.join(' OR ')}))`)
-          // the type parameter comes before its field parameters in the SQL text
-          params.splice(params.length - fields.filter((f) => f !== 'title' && f !== 'text').length, 0, type)
-        }
-        where.push(ors.length ? `(${ors.join(' OR ')})` : '0')
-      }
-      if (q.gaps) {
-        // items that break a coverage rule; the rules come from the schema through the workspace
-        const ors = (q.rules ?? []).map((r) => gapSql(r, params))
-        where.push(ors.length ? `(${ors.join(' OR ')})` : '0')
-      }
-      if (q.document !== undefined) {
-        // the document is the first folder of the path; '' = files directly in requirements/
-        // stored at indexing time (0.18.0; before: a range on the path)
-        where.push('i.doc = ?')
-        params.push(q.document)
-      }
-      if (q.parent !== undefined) {
-        if (q.parent === null) {
-          // the top level: also items whose parent is in another document or missing — a file copied by hand from
-          // another document keeps its old parent and would otherwise have no place; stored as
-          // `top` so this is an index lookup (the subquery cost 0.5 s at 50,000 items on CI)
-          where.push('i.top = 1')
-        } else {
-          // children in the parent's own document only: a hand-moved child shows at its own document's top level,
-          // not also under its old parent
-          where.push('i.parent = ? AND i.doc IN (SELECT p.doc FROM items p WHERE p.id = ?)')
-          params.push(q.parent, q.parent)
-        }
-      }
-      const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+      const { whereSql, params } = whereOf(q)
 
       const by = q.sort?.by ?? 'id'
       const dir = q.sort?.descending ? 'DESC' : 'ASC'
@@ -545,7 +560,27 @@ export function createSqliteIndexCache(dbFile: string): IndexCache {
       const rows = db
         .prepare(`SELECT i.*, ${COUNTS} FROM items i ${whereSql} ORDER BY ${orderSql} LIMIT ? OFFSET ?`)
         .all(...params, ...orderParams, limit, offset) as unknown as ItemRow[]
-      return { total, items: rows.map((r) => rowToItem(q.brief ? { ...r, text: preview(r.text) } : q.textUpTo !== undefined && r.text.length > q.textUpTo ? { ...r, text: r.text.slice(0, q.textUpTo) } : r, fieldIds)) }
+      return { total, items: rows.map((r) => shaped(r, q)) }
+    },
+
+    matching(q: ItemQuery): { rid: number; id: string }[] {
+      const { whereSql, params } = whereOf(q)
+      return db.prepare(`SELECT i.rid AS rid, i.id AS id FROM items i ${whereSql}`).all(...params) as { rid: number; id: string }[]
+    },
+
+    rows(rids: number[], shape: Pick<ItemQuery, 'brief' | 'textUpTo'> = {}): IndexedItem[] {
+      if (rids.length === 0) return []
+      const found = new Map<number, ItemRow>()
+      // in slices well below SQLite's parameter limit
+      for (let k = 0; k < rids.length; k += 5_000) {
+        const part = rids.slice(k, k + 5_000)
+        const got = db.prepare(`SELECT i.*, ${COUNTS} FROM items i WHERE i.rid IN (${part.map(() => '?').join(',')})`).all(...part) as unknown as (ItemRow & { rid: number })[]
+        for (const r of got) found.set(r.rid, r)
+      }
+      return rids.flatMap((rid) => {
+        const r = found.get(rid)
+        return r ? [shaped(r, shape)] : []
+      })
     },
 
     pathsOf: (id) => (db.prepare('SELECT path FROM items WHERE id = ? ORDER BY path').all(id) as { path: string }[]).map((r) => r.path),

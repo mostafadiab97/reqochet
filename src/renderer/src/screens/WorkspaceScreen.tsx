@@ -343,21 +343,36 @@ export function WorkspaceScreen({
   useEffect(() => {
     toggleRef.current = toggleChanges
   })
+  // a window call that throws is shown, never only logged with a stale table (1.0.2, CRA-12)
   const revert = async (id: string, part: RevertPart): Promise<void> => {
-    const r = await window.reqochet.revertChange(id, part)
-    if (!r.ok) changes.setError(r.message)
+    try {
+      const r = await window.reqochet.revertChange(id, part)
+      if (!r.ok) changes.setError(r.message)
+    } catch (e) {
+      changes.setError(errorMessage(e))
+    }
     await afterChange()
   }
-  const discard = async (entry: CompareEntry): Promise<void> => {
-    const r = await window.reqochet.discardChanges(entry.paths)
-    if (!r.ok) changes.setError(r.message)
-    git.onPanelResult(r)
+  const discardPaths = async (paths: string[]): Promise<void> => {
+    try {
+      const r = await window.reqochet.discardChanges(paths)
+      if (!r.ok) changes.setError(r.message)
+      git.onPanelResult(r)
+    } catch (e) {
+      changes.setError(errorMessage(e))
+      await afterChange()
+    }
   }
+  const discard = (entry: CompareEntry): Promise<void> => discardPaths(entry.paths)
 
   const newItem = async (type: string, parent?: string, after?: string): Promise<void> => {
     if (!type) return
-    const item = await window.reqochet.newItem(type, parent, after, document === ALL_DOCUMENTS ? undefined : document)
-    request({ kind: 'draft', item })
+    try {
+      const item = await window.reqochet.newItem(type, parent, after, document === ALL_DOCUMENTS ? undefined : document)
+      request({ kind: 'draft', item })
+    } catch (e) {
+      setNotice(errorMessage(e))
+    }
   }
 
   const onMove = async (ids: string[], parent: string | null, before: string | null): Promise<void> => {
@@ -367,8 +382,14 @@ export function WorkspaceScreen({
       return
     }
     // several chosen rows move together (0.11.0); they stay chosen
-    const r = ids.length > 1 ? await window.reqochet.reparentItems(ids, parent, before) : await window.reqochet.reparentItem(id, parent, before)
-    setNotice(r.ok ? null : T.workspace.moveFailed(ids.length > 1 ? T.workspace.items : id, r.message))
+    let r: { ok: boolean; message?: string }
+    try {
+      r = ids.length > 1 ? await window.reqochet.reparentItems(ids, parent, before) : await window.reqochet.reparentItem(id, parent, before)
+    } catch (e) {
+      r = { ok: false, message: errorMessage(e) }
+      await afterChange()
+    }
+    setNotice(r.ok ? null : T.workspace.moveFailed(ids.length > 1 ? T.workspace.items : id, r.message ?? ''))
     if (r.ok && ids.length > 1) {
       await afterChange()
       return
@@ -463,7 +484,11 @@ export function WorkspaceScreen({
   const backToNow = async (): Promise<void> => {
     setTarget(null)
     setChosen(new Set())
-    onInfo(await window.reqochet.closeVersion())
+    try {
+      onInfo(await window.reqochet.closeVersion())
+    } catch (e) {
+      setNotice(errorMessage(e))
+    }
     setDataVersion((v) => v + 1)
   }
 
@@ -580,11 +605,7 @@ export function WorkspaceScreen({
             onPull={() => void git.run('pull')}
             onRevert={revert}
             onDiscard={discard}
-            onDiscardPaths={async (paths) => {
-              const r = await window.reqochet.discardChanges(paths)
-              if (!r.ok) changes.setError(r.message)
-              git.onPanelResult(r)
-            }}
+            onDiscardPaths={discardPaths}
             onOpenItem={select}
             onOpenImpact={(id) =>
               guarded(() => {

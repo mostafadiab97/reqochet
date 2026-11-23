@@ -4,6 +4,7 @@ import { basename, extname, join } from 'node:path'
 import type { LoadedTheme, ThemeLayers, ThemeOverrides, ThemeConfig } from '../../shared/api'
 import type { ThemeService } from './index'
 import { DEFAULT_THEME, validateTheme } from './defaults'
+import { isTransient } from '../safe-files'
 
 const MIME: Record<string, string> = {
   '.svg': 'image/svg+xml',
@@ -18,9 +19,16 @@ const MIME: Record<string, string> = {
  *
  * @param configDir   folder with the shipped theme.json (part of the installed app)
  * @param resourceDir folder with the shipped logo
- * @param userDir     per-user folder for the user's own theme.json and custom logo (%APPDATA%\ReqMan)
+ * @param userDir     per-user folder for the user's own theme.json and custom logo (%APPDATA%\reqochet)
  */
-export function createFileThemeService(configDir: string, resourceDir: string, userDir: string): ThemeService {
+export function createFileThemeService(
+  configDir: string,
+  resourceDir: string,
+  userDir: string,
+  /** For tests: the waits (ms) between rename attempts while Windows holds theme.json (about 1.5 s by default). */
+  options: { renameWaits?: readonly number[] } = {}
+): ThemeService {
+  const renameWaits = options.renameWaits ?? [10, 20, 40, 80, 150, 250, 400, 600]
   const shippedFile = join(configDir, 'theme.json')
   const userFile = join(userDir, 'theme.json')
 
@@ -55,6 +63,27 @@ export function createFileThemeService(configDir: string, resourceDir: string, u
   }
 
   let saving: Promise<unknown> = Promise.resolve()
+  /**
+   * Renames the new file over theme.json. Windows refuses while another program (or a reader in this app) has the file
+   * open (EPERM/EBUSY): retried briefly — and before each retry the file must still be the one the editor read, so a
+   * change made meanwhile is never overwritten. Still locked at the end: reported as a conflict, the old file stays
+   * (1.0.2; the intermittent "two saves in parallel" failure on the Windows runner).
+   */
+  const replaceChecked = async (tmp: string, expectedRevision: string): Promise<void> => {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await rename(tmp, userFile)
+        return
+      } catch (e) {
+        const wait = renameWaits[attempt]
+        if (!isTransient(e)) throw e
+        if (wait === undefined) throw new ThemeFileError('changed')
+        await new Promise((r) => setTimeout(r, wait))
+        if ((await revisionOf(userFile)) !== expectedRevision) throw new ThemeFileError('changed')
+      }
+    }
+  }
+
   const saveNow = async (user: ThemeOverrides, expectedRevision: string): Promise<LoadedTheme> => {
     await mkdir(userDir, { recursive: true })
     // never write over a file that changed since the editor read it 
@@ -82,7 +111,7 @@ export function createFileThemeService(configDir: string, resourceDir: string, u
     const tmp = `${userFile}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`
     try {
       await writeFile(tmp, JSON.stringify(next, null, 2) + '\n')
-      await rename(tmp, userFile)
+      await replaceChecked(tmp, expectedRevision)
     } catch (e) {
       await rm(tmp, { force: true }).catch(() => undefined)
       throw e

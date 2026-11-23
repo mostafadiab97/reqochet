@@ -14,7 +14,7 @@ export interface AppInfo {
   electronVersion: string
   /** Full path of the log file, shown in the Diagnostics panel. */
   logFile: string
-  /** Full path of the user's own theme.json (in %APPDATA%\\ReqMan; survives updates). */
+  /** Full path of the user's own theme.json (in %APPDATA%\\reqochet; survives updates). */
   themeFile: string
   /** The GitHub releases page of the update feed (from the installed app-update.yml), when known. */
   releasesPage?: string
@@ -505,7 +505,7 @@ export interface ExportItemsRequest {
 /**
  * What a file column becomes: a built-in part, a field ("field:status"), this item's links of one type
  * ("link:verifies" — the cell lists target IDs), or links of one type stored in other items ("linkFrom:verifies",
- * e.g. a "Verified by" column). "links" / "linkedFrom" are ReqMan's own export format ("verifies REQ-…; …").
+ * e.g. a "Verified by" column). "links" / "linkedFrom" are reqochet's own export format ("verifies REQ-…; …").
  */
 export type ImportTarget =
   | 'ignore'

@@ -166,13 +166,13 @@ export function TypesDialog({ info, onSaved, onClose, tab: firstTab = 'items' }:
               const n = usage?.items[t.id] ?? 0
               return (
                 <div key={t.key} className="fields-table__row" role="row">
-                  <input className="input" value={t.name} aria-label={T.typesDialog.nameOf(t.name || t.id)} onChange={(e) => patchItem(t.key, { name: e.target.value })} />
-                  <input className="input" value={t.short ?? ''} aria-label={T.typesDialog.shortOf(t.name)} onChange={(e) => patchItem(t.key, { short: e.target.value })} />
-                  <label className="check" title={T.typesDialog.headingOf(t.name)}>
+                  <span className="cell-contents" role="cell"><input className="input" value={t.name} aria-label={T.typesDialog.nameOf(t.name || t.id)} onChange={(e) => patchItem(t.key, { name: e.target.value })} /></span>
+                  <span className="cell-contents" role="cell"><input className="input" value={t.short ?? ''} aria-label={T.typesDialog.shortOf(t.name)} onChange={(e) => patchItem(t.key, { short: e.target.value })} /></span>
+                  <span className="cell-contents" role="cell"><label className="check" title={T.typesDialog.headingOf(t.name)}>
                     <input type="checkbox" checked={t.requirement === false} onChange={(e) => patchItem(t.key, { requirement: !e.target.checked })} />
                     <span className="sr-only">{T.typesDialog.headingOf(t.name)}</span>
-                  </label>
-                  <div className="types__extra">
+                  </label></span>
+                  <div className="types__extra" role="cell">
                   <details className="types__required">
                     <summary aria-label={`${T.typesDialog.required}: ${t.name}`}>{(t.required ?? []).length ? (t.required ?? []).map((r) => fieldChoices.find((f) => f.id === r)?.name ?? r).join(', ') : T.typesDialog.none}</summary>
                     {fieldChoices.map((f) => (
@@ -234,8 +234,8 @@ export function TypesDialog({ info, onSaved, onClose, tab: firstTab = 'items' }:
               const n = usage?.links[l.id] ?? 0
               return (
                 <div key={l.key} className="fields-table__row" role="row">
-                  <input className="input" value={l.name} aria-label={T.typesDialog.nameOf(l.name || l.id)} onChange={(e) => patchLink(l.key, { name: e.target.value })} />
-                  <input className="input" value={l.reverseName} aria-label={T.typesDialog.reverseOf(l.name)} onChange={(e) => patchLink(l.key, { reverseName: e.target.value })} />
+                  <span className="cell-contents" role="cell"><input className="input" value={l.name} aria-label={T.typesDialog.nameOf(l.name || l.id)} onChange={(e) => patchLink(l.key, { name: e.target.value })} /></span>
+                  <span className="cell-contents" role="cell"><input className="input" value={l.reverseName} aria-label={T.typesDialog.reverseOf(l.name)} onChange={(e) => patchLink(l.key, { reverseName: e.target.value })} /></span>
                   <span className="types__used" role="cell">
                     {T.typesDialog.linkCount(n)}{' '}
                     <button type="button" className="link-btn" disabled={n > 0} title={n > 0 ? T.typesDialog.cannotRemove(n) : T.typesDialog.remove} onClick={() => (setDirty(true), setLinks((xs) => xs.filter((x) => x.key !== l.key)))}>

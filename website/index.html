@@ -758,7 +758,9 @@ footer p:last-child{margin-inline-start:auto}
 // in the browser so no account name is written into the file; anywhere else the button stays on the page
 const RELEASES_URL = (() => {
   const user = location.hostname.match(/^([a-z0-9-]+)\.github\.io$/i)?.[1];
-  const repo = location.pathname.split('/').filter(Boolean)[0] || 'reqochet';
+  const first = location.pathname.split('/').filter(Boolean)[0] || 'reqochet';
+  // only a plain repository name goes into the link (review 1.0.2, SEC-102-06)
+  const repo = /^[A-Za-z0-9._-]+$/.test(first) ? first : 'reqochet';
   return user ? `https://github.com/${user}/${repo}/releases/latest` : '#download';
 })();
 document.querySelectorAll('a[data-releases]').forEach(a => { a.href = RELEASES_URL; });

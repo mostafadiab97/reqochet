@@ -242,6 +242,7 @@ export function ImportDialog(props: { schema: Schema; file: ImportFile | null; n
                         .filter(Boolean)
                         .join(' · ')}
                     </span>
+                    <span className="cell-contents" role="cell">
                     <select
                       className="input"
                       aria-label={T.importDialog.useAsFor(headers[c] || T.importDialog.unnamed(c + 1))}
@@ -265,6 +266,7 @@ export function ImportDialog(props: { schema: Schema; file: ImportFile | null; n
                         </optgroup>
                       ))}
                     </select>
+                    </span>
                   </div>
                 ))}
               </div>
@@ -306,7 +308,7 @@ export function ImportDialog(props: { schema: Schema; file: ImportFile | null; n
                       <span>{T.importDialog.nothingNew}</span>
                     </p>
                   )}
-                  <div className="import__preview scroll" role="table" aria-label={T.importDialog.previewLabel}>
+                  <div className="import__preview scroll" role="table" aria-label={T.importDialog.previewLabel} tabIndex={0}>
                     {data.rows.slice(0, 100).map((r) => (
                       <div key={r.row} className="import__prow" role="row">
                         <span className="import__rowno" role="cell">

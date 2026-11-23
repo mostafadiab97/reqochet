@@ -26,7 +26,7 @@ const groupOf = (path: string): ProblemGroup => ((PROBLEM_GROUPS as readonly str
 /** Schema problems and whole-repository problems, as one list (pure). File problems carry a path, not an ID. */
 export function problemsOf(info: Pick<RepoInfo, 'schemaProblems' | 'issues'>): Problem[] {
   return [
-    ...info.schemaProblems.map((p): Problem => ({ key: `s-${p.path}`, text: T.workspace.schemaProblem(p.path, p.message), message: p.message, subject: p.path, group: 'schema', severity: 'error' })),
+    ...info.schemaProblems.map((p): Problem => ({ key: `s-${p.path}`, text: T.workspace.schemaProblem(p.path, p.message), message: p.message, subject: p.path, group: 'schema', severity: p.severity === 'warning' ? 'warning' : 'error' })), // a notice stays a notice (review 1.0.2, CR102-12)
     ...info.issues.map(
       (i, n): Problem => ({
         key: `i-${n}-${i.itemId}-${i.path}-${i.message}`, // the index keeps keys unique (two files with one ID)

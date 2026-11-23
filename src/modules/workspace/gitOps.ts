@@ -6,7 +6,7 @@ import { readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 import type { GitResult, GitState, HistoryEntry, ItemChange, ItemVersionCompare } from '../../shared/api'
 import type { Item } from '../../shared/domain'
-import { GitError, PUSH_NO_UPSTREAM, PUSH_OTHER_NAME, type FileChange, type GitAdapter } from '../git-adapter'
+import { GitError, PUSH_BAD_REMOTE, PUSH_NO_UPSTREAM, PUSH_OTHER_NAME, type FileChange, type GitAdapter } from '../git-adapter'
 import type { IndexCache } from '../index-cache'
 import { diffItems, parseItemFile, validateItem } from '../items'
 import type { Logger } from '../logger'
@@ -41,6 +41,7 @@ export const reqPath = (repo: RequirementsRepo): string => relative(repo.root, r
 export function explainGitError(e: unknown): string {
   const text = e instanceof GitError ? `${e.stderr}\n${e.stdout}\n${e.message}` : String(e instanceof Error ? e.message : e)
   if (text.includes(PUSH_NO_UPSTREAM)) return T.gitMsg.noRemotePush
+  if (text.includes(PUSH_BAD_REMOTE)) return T.gitMsg.badRemoteName(text.slice(text.indexOf(PUSH_BAD_REMOTE)).split('\n')[1] ?? '')
   if (text.includes(PUSH_OTHER_NAME)) {
     const [, branch = '', upstream = ''] = text.slice(text.indexOf(PUSH_OTHER_NAME)).split('\n')
     return T.gitMsg.upstreamOtherName(branch, upstream)
@@ -249,16 +250,23 @@ export function createGitOps(deps: GitOpsDeps) {
         await git.setPendingBaselines(s.repo.root, baselines)
         invalidate()
       }
-      if (st.upstream && st.ahead === 0 && baselines.length === 0) {
+      // a fork setup (pull from the team, push to one's own copy): "ahead" counts against the upstream, not against
+      // where the push goes, so it cannot say "nothing to push" there (1.0.2, B-06)
+      const pushTarget = st.upstream && git.pushRemote ? await git.pushRemote(s.repo.root).catch(() => null) : null
+      const forked = pushTarget !== null && remote !== null && pushTarget !== remote
+      if (st.upstream && st.ahead === 0 && baselines.length === 0 && !forked) {
         return done(s, st.changes.length > 0 ? T.gitMsg.notCommittedYet : T.gitMsg.remoteHasAll)
       }
       //: keep order keys short, but only in groups this user changed
       const tidied = st.upstream && deps.tidyBeforePush ? await deps.tidyBeforePush(s, st.upstream).catch((e: unknown) => (log.warn(`Tidying positions skipped: ${String(e)}`), 0)) : 0
       try {
-        if (!st.upstream || st.ahead > 0) await git.push(s.repo.root, st.upstream || !remote || !st.branch ? undefined : { remote, branch: st.branch })
+        let pushedTo: string | void = undefined
+        if (!st.upstream || st.ahead > 0 || forked) pushedTo = await git.push(s.repo.root, st.upstream || !remote || !st.branch ? undefined : { remote, branch: st.branch })
         let refused: string[] = []
-        if (baselines.length > 0 && remote) {
-          refused = await git.pushBaselines(s.repo.root, remote, baselines)
+        // baselines go where the branch went (B-06)
+        const baselineRemote = pushedTo || pushTarget || remote
+        if (baselines.length > 0 && baselineRemote) {
+          refused = await git.pushBaselines(s.repo.root, baselineRemote, baselines)
           // a refused name stays here only: the remote has a baseline of that name already; it is marked so
           // nobody mistakes it for the shared one
           await git.setPendingBaselines(s.repo.root, [])

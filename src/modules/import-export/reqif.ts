@@ -1,7 +1,7 @@
 // ReqIF (OMG Requirements Interchange Format 1.2) — the exchange format of DOORS, Jama, Polarion, ProR … (0.11.0).
 // Reading: a ReqIF file becomes the same table the Excel import uses (one row per object in hierarchy order, one
 // column per attribute and per relation type), so the import wizard, the column guessing and re-import matching
-// work unchanged. Writing: one specification with ReqMan's hierarchy, every field as an attribute, links as
+// work unchanged. Writing: one specification with reqochet's hierarchy, every field as an attribute, links as
 // relations. Pure: text in, text out (a .reqifz archive is unpacked by the caller).
 import { SaxesParser } from 'saxes'
 import type { FieldDef, IndexedItem, Schema } from '../../shared/domain'
@@ -238,6 +238,31 @@ export interface ReqifItem {
 /** XML IDs: start with a letter or "_", then letters, digits, "-", "_", "." */
 const xmlId = (s: string): string => (/^[A-Za-z_][\w.-]*$/.test(s) ? s : `_${s.replace(/[^\w.-]/g, '_')}`)
 
+/** The fixed attribute identifiers (fields get their own names around them). */
+const BUILT_IN_ATTRS = ['foreignid', 'name', 'text', 'type', 'number', 'markdown', 'sourceid'].map((a) => `reqochet-ad-${a}`)
+
+/**
+ * One unique IDENTIFIER per item (review 1.0.2, Q-1: "A B" and "_A_B", or a source-id equal to another item's own ID,
+ * gave two objects the same one — an invalid file). reqochet IDs are reserved first; an imported item keeps its other
+ * tool's identifier when that is still free, else its own ID, else a numbered one.
+ */
+function identifiers(items: ReqifItem[], used: Set<string>): Map<string, string> {
+  const out = new Map<string, string>()
+  for (const x of items) if (x.sourceId === undefined && !used.has(xmlId(x.item.id))) {
+    out.set(x.item.id, xmlId(x.item.id))
+    used.add(xmlId(x.item.id))
+  }
+  for (const x of items) {
+    if (out.has(x.item.id)) continue
+    let id = xmlId(x.sourceId ?? x.item.id)
+    if (used.has(id)) id = xmlId(x.item.id)
+    for (let n = 2; used.has(id); n++) id = `${xmlId(x.item.id)}-${n}`
+    out.set(x.item.id, id)
+    used.add(id)
+  }
+  return out
+}
+
 /**
  * The items as one ReqIF specification: ReqIF.ForeignID (the reqochet ID), ReqIF.Name (title), ReqIF.Text (XHTML),
  * the outline number and every field; enumeration fields as ReqIF enumerations; links as relations of their
@@ -245,10 +270,24 @@ const xmlId = (s: string): string => (/^[A-Za-z_][\w.-]*$/.test(s) ? s : `_${s.r
  */
 export function writeReqif(schema: Schema, items: ReqifItem[], title: string, now = new Date()): string {
   const time = now.toISOString()
-  const idOf = new Map(items.map((x) => [x.item.id, xmlId(x.sourceId ?? x.item.id)]))
+  // one register of every IDENTIFIER in the file: the fixed ones, then the items' (they keep the other tool's
+  // identifiers where possible), then every name made from a field, an option, a link type or a counter takes the next
+  // free variant (review 1.0.2, CR102-13: a source-id "reqochet-spec", a field "number" or a link type "1" clashed)
+  const taken = new Set(['reqochet-header', 'reqochet-dt-string', 'reqochet-dt-xhtml', 'reqochet-type-item', 'reqochet-type-spec', 'reqochet-spec', ...BUILT_IN_ATTRS])
+  const idOf = identifiers(items, taken)
+  const claim = (want: string): string => {
+    let id = want
+    for (let n = 2; taken.has(id); n++) id = `${want}-${n}`
+    taken.add(id)
+    return id
+  }
   const fieldDefs = schema.fields
   const enumFields = fieldDefs.filter((f) => (f.type === 'enum' || f.type === 'list') && f.options && f.options.length > 0)
-  const enumId = (f: FieldDef, i: number): string => xmlId(`reqochet-enum-${f.id}-${i}`)
+  const dtIdOf = new Map(enumFields.map((f) => [f.id, claim(xmlId(`reqochet-dt-${f.id}`))]))
+  const enumIdOf = new Map(enumFields.map((f) => [f.id, (f.options ?? []).map((_, i) => claim(xmlId(`reqochet-enum-${f.id}-${i}`)))]))
+  const enumId = (f: FieldDef, i: number): string => enumIdOf.get(f.id)?.[i] ?? xmlId(`reqochet-enum-${f.id}-${i}`)
+  const attrIdOf = new Map(fieldDefs.map((f) => [f.id, claim(xmlId(`reqochet-ad-${f.id}`))]))
+  const relTypeOf = new Map(schema.linkTypes.map((l) => [l.id, claim(xmlId(`reqochet-rel-${l.id}`))]))
   const out: string[] = []
   const w = (s: string): void => {
     out.push(s)
@@ -262,7 +301,7 @@ export function writeReqif(schema: Schema, items: ReqifItem[], title: string, no
   w(`<DATATYPE-DEFINITION-STRING IDENTIFIER="reqochet-dt-string" LONG-NAME="String" LAST-CHANGE="${time}" MAX-LENGTH="1000000"/>`)
   w(`<DATATYPE-DEFINITION-XHTML IDENTIFIER="reqochet-dt-xhtml" LONG-NAME="Formatted text" LAST-CHANGE="${time}"/>`)
   for (const f of enumFields) {
-    w(`<DATATYPE-DEFINITION-ENUMERATION IDENTIFIER="${xmlId(`reqochet-dt-${f.id}`)}" LONG-NAME="${esc(f.name)}" LAST-CHANGE="${time}"><SPECIFIED-VALUES>`)
+    w(`<DATATYPE-DEFINITION-ENUMERATION IDENTIFIER="${dtIdOf.get(f.id) as string}" LONG-NAME="${esc(f.name)}" LAST-CHANGE="${time}"><SPECIFIED-VALUES>`)
     ;(f.options ?? []).forEach((o, i) => w(`<ENUM-VALUE IDENTIFIER="${enumId(f, i)}" LONG-NAME="${esc(o)}" LAST-CHANGE="${time}"><PROPERTIES><EMBEDDED-VALUE KEY="${i}" OTHER-CONTENT=""/></PROPERTIES></ENUM-VALUE>`))
     w('</SPECIFIED-VALUES></DATATYPE-DEFINITION-ENUMERATION>')
   }
@@ -279,7 +318,7 @@ export function writeReqif(schema: Schema, items: ReqifItem[], title: string, no
     // a source ID that is not a valid XML identifier ("123", "DOORS 1") is changed for IDENTIFIER; its true value
     // travels here, so the re-import finds the item again instead of creating a duplicate
     { id: 'reqochet-ad-sourceid', name: SOURCE_ID_ATTR, kind: 'string' },
-    ...fieldDefs.map((f) => ({ id: xmlId(`reqochet-ad-${f.id}`), name: f.name, kind: enumFields.includes(f) ? ('enum' as const) : ('string' as const), field: f }))
+    ...fieldDefs.map((f) => ({ id: attrIdOf.get(f.id) as string, name: f.name, kind: enumFields.includes(f) ? ('enum' as const) : ('string' as const), field: f }))
   ]
   w('<SPEC-TYPES>')
   w(`<SPEC-OBJECT-TYPE IDENTIFIER="reqochet-type-item" LONG-NAME="Requirement" LAST-CHANGE="${time}"><SPEC-ATTRIBUTES>`)
@@ -287,12 +326,12 @@ export function writeReqif(schema: Schema, items: ReqifItem[], title: string, no
     if (a.kind === 'xhtml') w(`<ATTRIBUTE-DEFINITION-XHTML IDENTIFIER="${a.id}" LONG-NAME="${esc(a.name)}" LAST-CHANGE="${time}"><TYPE><DATATYPE-DEFINITION-XHTML-REF>reqochet-dt-xhtml</DATATYPE-DEFINITION-XHTML-REF></TYPE></ATTRIBUTE-DEFINITION-XHTML>`)
     else if (a.kind === 'enum' && a.field)
       w(
-        `<ATTRIBUTE-DEFINITION-ENUMERATION IDENTIFIER="${a.id}" LONG-NAME="${esc(a.name)}" LAST-CHANGE="${time}" MULTI-VALUED="${a.field.type === 'list'}"><TYPE><DATATYPE-DEFINITION-ENUMERATION-REF>${xmlId(`reqochet-dt-${a.field.id}`)}</DATATYPE-DEFINITION-ENUMERATION-REF></TYPE></ATTRIBUTE-DEFINITION-ENUMERATION>`
+        `<ATTRIBUTE-DEFINITION-ENUMERATION IDENTIFIER="${a.id}" LONG-NAME="${esc(a.name)}" LAST-CHANGE="${time}" MULTI-VALUED="${a.field.type === 'list'}"><TYPE><DATATYPE-DEFINITION-ENUMERATION-REF>${dtIdOf.get(a.field.id) as string}</DATATYPE-DEFINITION-ENUMERATION-REF></TYPE></ATTRIBUTE-DEFINITION-ENUMERATION>`
       )
     else w(`<ATTRIBUTE-DEFINITION-STRING IDENTIFIER="${a.id}" LONG-NAME="${esc(a.name)}" LAST-CHANGE="${time}"><TYPE><DATATYPE-DEFINITION-STRING-REF>reqochet-dt-string</DATATYPE-DEFINITION-STRING-REF></TYPE></ATTRIBUTE-DEFINITION-STRING>`)
   }
   w('</SPEC-ATTRIBUTES></SPEC-OBJECT-TYPE>')
-  for (const l of schema.linkTypes) w(`<SPEC-RELATION-TYPE IDENTIFIER="${xmlId(`reqochet-rel-${l.id}`)}" LONG-NAME="${esc(l.name)}" LAST-CHANGE="${time}"/>`)
+  for (const l of schema.linkTypes) w(`<SPEC-RELATION-TYPE IDENTIFIER="${relTypeOf.get(l.id) as string}" LONG-NAME="${esc(l.name)}" LAST-CHANGE="${time}"/>`)
   w(`<SPECIFICATION-TYPE IDENTIFIER="reqochet-type-spec" LONG-NAME="Specification" LAST-CHANGE="${time}"/>`)
   w('</SPEC-TYPES>')
   // objects
@@ -310,7 +349,8 @@ export function writeReqif(schema: Schema, items: ReqifItem[], title: string, no
     str('reqochet-ad-type', typeName)
     str('reqochet-ad-number', it.number ?? '')
     str('reqochet-ad-markdown', it.text)
-    if (x.sourceId !== undefined && xmlId(x.sourceId) !== x.sourceId) str('reqochet-ad-sourceid', x.sourceId)
+    // the other tool's own identifier whenever the file's IDENTIFIER differs from it (Q-2)
+    if (x.sourceId !== undefined && idOf.get(it.id) !== x.sourceId) str('reqochet-ad-sourceid', x.sourceId)
     for (const a of attrs.filter((y) => y.field)) {
       const f = a.field as FieldDef
       const v = it.fields[f.id]
@@ -331,7 +371,7 @@ export function writeReqif(schema: Schema, items: ReqifItem[], title: string, no
       const target = idOf.get(l.target)
       if (!target || !schema.linkTypes.some((t) => t.id === l.type)) continue
       w(
-        `<SPEC-RELATION IDENTIFIER="reqochet-rel-${++n}" LAST-CHANGE="${time}"><TYPE><SPEC-RELATION-TYPE-REF>${xmlId(`reqochet-rel-${l.type}`)}</SPEC-RELATION-TYPE-REF></TYPE><SOURCE><SPEC-OBJECT-REF>${idOf.get(x.item.id) as string}</SPEC-OBJECT-REF></SOURCE><TARGET><SPEC-OBJECT-REF>${target}</SPEC-OBJECT-REF></TARGET></SPEC-RELATION>`
+        `<SPEC-RELATION IDENTIFIER="${claim(`reqochet-rel-${++n}`)}" LAST-CHANGE="${time}"><TYPE><SPEC-RELATION-TYPE-REF>${relTypeOf.get(l.type) ?? xmlId(`reqochet-rel-${l.type}`)}</SPEC-RELATION-TYPE-REF></TYPE><SOURCE><SPEC-OBJECT-REF>${idOf.get(x.item.id) as string}</SPEC-OBJECT-REF></SOURCE><TARGET><SPEC-OBJECT-REF>${target}</SPEC-OBJECT-REF></TARGET></SPEC-RELATION>`
       )
     }
   w('</SPEC-RELATIONS>')
@@ -346,7 +386,7 @@ export function writeReqif(schema: Schema, items: ReqifItem[], title: string, no
   items.forEach((x, i) => {
     const depth = Math.min(x.depth - base, (open.length ? (open[open.length - 1] as number) + 1 : 0))
     while (open.length && (open[open.length - 1] as number) >= depth) close()
-    w(`<SPEC-HIERARCHY IDENTIFIER="reqochet-h-${i + 1}" LAST-CHANGE="${time}"><OBJECT><SPEC-OBJECT-REF>${idOf.get(x.item.id) as string}</SPEC-OBJECT-REF></OBJECT><CHILDREN>`)
+    w(`<SPEC-HIERARCHY IDENTIFIER="${claim(`reqochet-h-${i + 1}`)}" LAST-CHANGE="${time}"><OBJECT><SPEC-OBJECT-REF>${idOf.get(x.item.id) as string}</SPEC-OBJECT-REF></OBJECT><CHILDREN>`)
     open.push(depth)
   })
   while (open.length) close()

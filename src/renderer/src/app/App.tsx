@@ -3,7 +3,7 @@ import { useActivity, useWindowActive } from '../lib/activity'
 import { QUICK_START_PAGE, SHORTCUTS_PAGE } from '../../../shared/guide'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AppInfo, GitInfo, LoadedTheme, RepoInfo, ThemeConfig, UpdateStatus, ImportFile } from '../../../shared/api'
-import { applyTheme, loadSavedMode, resolveMode, saveMode, useEffectiveMode, type ThemeMode } from '../theme/applyTheme'
+import { applyTheme, loadSavedMode, resolveMode, saveMode, themeOrBuiltIn, useEffectiveMode, type ThemeMode } from '../theme/applyTheme'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { LanguageToggle } from '../components/LanguageToggle'
@@ -44,7 +44,8 @@ export function App() {
     // the loading animation plays at least one loop (1.4 s) so it can be seen (0.16.0 step 3)
     const shown = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : SPLASH_MIN_MS
     const minimum = new Promise((done) => setTimeout(done, shown))
-    void Promise.all([window.reqochet.getTheme(), minimum]).then(([loaded]) => setTheme(loaded))
+    // a theme that cannot be loaded must not keep the splash up for ever: the built-in theme instead (1.0.2, CRA-12)
+    void Promise.all([themeOrBuiltIn(window.reqochet.getTheme()), minimum]).then(([loaded]) => setTheme(loaded))
     void window.reqochet.getAppInfo().then(setAppInfo)
     void window.reqochet.getGitInfo().then(setGit)
     void window.reqochet.getUpdateStatus().then(setUpdate)
@@ -110,10 +111,14 @@ export function App() {
   }, [])
   const close = (): void => {
     const leave = (): void =>
-      void window.reqochet.closeRepository().then(() => {
-        setRepo(null)
-        setGitBusy(false)
-      })
+      // back to the start screen even when closing reports an error (1.0.2, CRA-12)
+      void window.reqochet
+        .closeRepository()
+        .catch(() => undefined)
+        .then(() => {
+          setRepo(null)
+          setGitBusy(false)
+        })
     if (leaveGuard.current) leaveGuard.current(leave)
     else leave()
   }
