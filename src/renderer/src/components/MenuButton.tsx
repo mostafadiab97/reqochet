@@ -26,6 +26,12 @@ export function MenuButton(props: {
   buttonRef?: RefObject<HTMLButtonElement | null>
   /** The button's own keys while the menu is closed (e.g. F2 to rename the document). */
   onButtonKeyDown?: (e: KeyboardEvent<HTMLButtonElement>) => void
+  /**
+   * The accessible name is what the button shows (its children, hidden words included) instead of `label`, which then
+   * serves only as the tooltip — so a spoken name always contains the visible text (1.0.2, axe
+   * label-content-name-mismatch).
+   */
+  nameFromContent?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const box = useRef<HTMLDivElement>(null)
@@ -90,7 +96,7 @@ export function MenuButton(props: {
         className={`${props.className ?? 'icon-btn'}${open ? ' is-open' : ''}`}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={props.label}
+        aria-label={props.nameFromContent === true && props.children !== undefined ? undefined : props.label}
         title={props.title ?? props.label}
         disabled={props.disabled}
         data-toolbar-item=""

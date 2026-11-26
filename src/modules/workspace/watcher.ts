@@ -60,7 +60,8 @@ export function watchRequirementsFolder(folder: string, onError?: (e: unknown) =
           // README.md is not an item; a document folder's own change event is not a new folder
           if (file.endsWith('.md')) {
             if (file.toLowerCase() !== 'readme.md') changed.add(file)
-          } else if (file !== '.gitattributes' && !docs.includes(file)) all = true
+          } else if (file !== '.gitattributes' && !file.endsWith('.tmp') && !docs.includes(file)) all = true
+          // (a `.tmp` name is a save in progress or a kept copy, never a document folder — 1.0.2, A-07)
           return
         }
         if (!file.endsWith('.md') || file.toLowerCase() === 'readme.md') return

@@ -127,17 +127,19 @@ function TextBlock({ before, after, sides, arrow }: { before: string; after: str
     else
       lines.push(
         <div key={i} className="diff__line diff__line--fold" role="row">
-          <button type="button" className="link-btn diff__unfold" onClick={() => setOpen((s) => new Set(s).add(i))}>
-            {T.change.unfold(r.count)}
-          </button>
+          <span className="cell-contents" role="cell">
+            <button type="button" className="link-btn diff__unfold" onClick={() => setOpen((s) => new Set(s).add(i))}>
+              {T.change.unfold(r.count)}
+            </button>
+          </span>
         </div>
       )
   })
   return (
     <div className="diff__block" role="table" aria-label={T.change.text}>
-      <div className="diff__texthead">
-        <span className="diff__label">{T.change.text}</span>
-        {arrow}
+      <div className="diff__texthead" role="row">
+        <span className="diff__label" role="columnheader">{T.change.text}</span>
+        <span className="cell-contents" role="cell">{arrow}</span>
       </div>
       <div className="diff__text">{lines}</div>
     </div>

@@ -46,7 +46,7 @@ await scenario('E2E history-0.18', async (ctx) => {
   await win.waitForTimeout(400)
   check((await dlg.locator('.history__row').count()) === 1, 'the search finds the commit by a word of its message')
   const old = dlg.locator('.history__row', { hasText: 'first version' })
-  await old.getByRole('button', { name: /^Open .* read-only$/ }).click()
+  await old.getByRole('button', { name: /^Open read-only: / }).click()
   // the old version fills the table itself, with a bar that leads back
   const bar = win.locator('.version-bar')
   await bar.waitFor()
@@ -63,12 +63,12 @@ await scenario('E2E history-0.18', async (ctx) => {
   await win.getByRole('button', { name: 'Versions', exact: true }).click()
   await dlg.getByRole('tab', { name: 'History' }).click()
   await old.waitFor()
-  await old.getByRole('button', { name: /^New branch at / }).click()
+  await old.getByRole('button', { name: /^New branch here: / }).click()
   await dlg.getByLabel('Name of the new branch').fill('fix-first')
   await dlg.getByRole('button', { name: 'Create branch' }).click()
   await dlg.getByText(/Branch fix-first created/).waitFor()
   check(gitIn(repo, 'rev-parse', 'fix-first').trim() === gitIn(repo, 'rev-parse', 'HEAD~1').trim() && gitIn(repo, 'rev-parse', '--abbrev-ref', 'HEAD').trim() === 'main', 'the branch starts at the old commit and the window stays on main')
-  await old.getByRole('button', { name: /^Compare .* with now$/ }).click()
+  await old.getByRole('button', { name: /^Compare with now: / }).click()
   await win.getByText('What changed').waitFor()
   check((await win.getByText('Heat the room fast').count()) > 0, 'Compare with now lists the changed requirement')
 

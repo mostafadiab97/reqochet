@@ -171,3 +171,4 @@ export { createWorkspace, cacheFileName, type WorkspaceDeps }
 export { compareOutline, documentOrderOf, outlineNumbers, planInsert, planSwap, planTidy } from './structure'
 export { explainGitError } from './gitOps'
 export { cleanView } from './views'
+export { readChecked, sameIgnoringConfirmations } from './compare'

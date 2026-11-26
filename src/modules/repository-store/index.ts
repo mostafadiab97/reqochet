@@ -89,7 +89,8 @@ export interface RequirementsRepo {
    * (`null` = the file must not exist yet). With `path` (relative to the requirements folder), that exact file is
    * checked and written — needed when the same ID exists in two files (a copied document).
    */
-  writeItem(item: Item, options?: { expectedRevision?: string | null; path?: string }): Promise<string>
+  /** `flush`: write it through to the disk before it replaces the old file (the editor's save; bulk writes leave it out). */
+  writeItem(item: Item, options?: { expectedRevision?: string | null; path?: string; flush?: boolean }): Promise<string>
   deleteItem(id: string, options?: { expectedRevision?: string }): Promise<void>
 }
 

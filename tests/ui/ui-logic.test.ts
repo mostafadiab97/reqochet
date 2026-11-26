@@ -165,3 +165,17 @@ describe('export columns and problems list', () => {
     expect(p[1]).toMatchObject({ id: 'RSK-1', fix: 'file-name' })
   })
 })
+
+describe('schema warnings stay warnings in the Problems list (1.0.2, CR102-12)', () => {
+  it('a schema problem with severity "warning" is a warning; others are errors', async () => {
+    const { problemsOf } = await import('../../src/renderer/src/workspace/screen/problemList')
+    const list = problemsOf({
+      schemaProblems: [
+        { path: 'itemTypes', message: 'More than 200 item types: the "incomplete" filter checks only the first 200.', severity: 'warning' },
+        { path: 'fields[1].id', message: 'Missing id.' }
+      ],
+      issues: []
+    })
+    expect(list.map((p) => p.severity)).toEqual(['warning', 'error'])
+  })
+})

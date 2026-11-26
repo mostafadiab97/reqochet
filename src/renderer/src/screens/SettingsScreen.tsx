@@ -119,7 +119,8 @@ export function SettingsScreen(props: {
           </ul>
         )}
       </nav>
-      <div className="settings-main" ref={main}>
+      {/* reachable with Tab, so the keyboard can scroll a long page (1.0.2, axe scrollable-region-focusable) */}
+      <div className="settings-main" ref={main} tabIndex={0}>
         <div className="page__inner">
           <h1 className="page__title">{view.kind === 'guide' ? nav.guide : (settingsPages.find((p) => p.id === view.page)?.label ?? T.settings.title)}</h1>
           {view.kind === 'settings' && view.page === 'env' && (

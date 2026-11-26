@@ -20,11 +20,40 @@ export interface ReleaseInfo {
   checksumsUrl: string
 }
 
-/** Compares "1.2.3" versions: negative when a < b. Pre-release suffixes are ignored. */
+/**
+ * Compares "1.2.3" versions: negative when a < b. A pre-release ranks below its release ("1.0.2-next.1" < "1.0.2"),
+ * so a PC with a test build from the public `next` branch still sees the real release as newer; two pre-releases
+ * of one version compare by their number ("next.2" > "next.1").
+ */
 export function compareVersions(a: string, b: string): number {
-  const pa = a.replace(/^v/, '').split(/[.-]/).map((x) => Number.parseInt(x, 10) || 0)
-  const pb = b.replace(/^v/, '').split(/[.-]/).map((x) => Number.parseInt(x, 10) || 0)
-  for (let i = 0; i < 3; i++) if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pa[i] ?? 0) - (pb[i] ?? 0)
+  const split = (v: string): { core: number[]; pre: string | null } => {
+    const s = v.trim().replace(/^v/, '').split('+')[0] ?? ''
+    const dash = s.indexOf('-')
+    const core = (dash < 0 ? s : s.slice(0, dash)).split('.').map((x) => Number.parseInt(x, 10) || 0)
+    return { core, pre: dash < 0 ? null : s.slice(dash + 1) }
+  }
+  const pa = split(a)
+  const pb = split(b)
+  for (let i = 0; i < 3; i++) if ((pa.core[i] ?? 0) !== (pb.core[i] ?? 0)) return (pa.core[i] ?? 0) - (pb.core[i] ?? 0)
+  if (pa.pre === pb.pre) return 0
+  if (pa.pre === null) return 1
+  if (pb.pre === null) return -1
+  // semver: dot-separated parts, numbers by value and below words, words by text
+  const xa = pa.pre.split('.')
+  const xb = pb.pre.split('.')
+  for (let i = 0; i < Math.max(xa.length, xb.length); i++) {
+    const x = xa[i]
+    const y = xb[i]
+    if (x === undefined) return -1
+    if (y === undefined) return 1
+    if (x === y) continue
+    const nx = /^\d+$/.test(x)
+    const ny = /^\d+$/.test(y)
+    if (nx && ny) return Number(x) - Number(y)
+    if (nx) return -1
+    if (ny) return 1
+    return x < y ? -1 : 1
+  }
   return 0
 }
 
@@ -115,4 +144,51 @@ export function checkInstaller(bytes: Uint8Array, latestYml: string, fileName: s
   if (!expected) return { ok: false, reason: `the checksum file does not list ${fileName}` }
   const actual = createHash('sha512').update(bytes).digest('base64')
   return actual === expected ? { ok: true } : { ok: false, reason: 'the download does not match its published checksum' }
+}
+
+/** Largest installer accepted when going back to an earlier version (1.0.2, S5; reqochet's is about 120 MB). */
+export const MAX_INSTALLER_BYTES = 512 * 1024 * 1024
+/** Largest latest.yml accepted (a few hundred bytes in practice). */
+export const MAX_CHECKSUMS_BYTES = 64 * 1024
+
+/** The installer's size as listed in latest.yml (`files[].size`), or null when it is not given. Pure. */
+export function listedSize(latestYml: string, fileName: string): number | null {
+  try {
+    const d = parseYaml(latestYml) as { files?: unknown } | null
+    const files = Array.isArray(d?.files) ? (d.files as unknown[]) : []
+    const entry = files.find((f): f is { url?: unknown; size?: unknown } => typeof f === 'object' && f !== null && (f as { url?: unknown }).url === fileName)
+    return typeof entry?.size === 'number' && Number.isSafeInteger(entry.size) && entry.size > 0 ? entry.size : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Reads a download's body, but never more than `cap` bytes (1.0.2, S5): a server that sends too much — by its
+ * Content-Length or by what actually arrives — is refused before it fills the memory.
+ */
+export async function readCapped(res: Response, cap: number): Promise<Uint8Array> {
+  const said = Number(res.headers.get('content-length'))
+  if (Number.isFinite(said) && said > cap) throw new Error(`the download is larger than allowed (${said} > ${cap} bytes)`)
+  if (!res.body) return new Uint8Array(0)
+  const reader = res.body.getReader()
+  const parts: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > cap) {
+      await reader.cancel().catch(() => undefined)
+      throw new Error(`the download is larger than allowed (more than ${cap} bytes)`)
+    }
+    parts.push(value)
+  }
+  const out = new Uint8Array(total)
+  let at = 0
+  for (const p of parts) {
+    out.set(p, at)
+    at += p.byteLength
+  }
+  return out
 }

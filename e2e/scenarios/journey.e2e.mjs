@@ -179,9 +179,15 @@ await scenario('E2E journey', async (ctx) => {
   // close the Filters pop-up first, as a user would: since 0.21.1 the toolbar can wrap, and the open pop-up then
   // lies over the first row
   await win.keyboard.press('Escape')
+  // wait for what the user sees (failed twice on the slower Windows runner, 18 and 22 Nov 2026): the search result
+  // must be the only row before the click, and the editor must show the clicked item — an editor that is already
+  // open still shows the previous item for a moment
+  for (let i = 0; i < 50 && (await rows().count()) !== 1; i++) await win.waitForTimeout(100)
   await rows().first().click()
-  await win.locator('.editor__body input').first().waitFor()
-  check((await win.locator('.editor__body input').first().inputValue()) === 'Temperature accuracy', 'clicking the row opens the item')
+  const title = win.locator('.editor__body input').first()
+  await title.waitFor()
+  for (let i = 0; i < 50 && (await title.inputValue()) !== 'Temperature accuracy'; i++) await win.waitForTimeout(100)
+  check((await title.inputValue()) === 'Temperature accuracy', 'clicking the row opens the item')
   await win.getByRole('button', { name: 'Clear filters' }).click()
   await win.waitForTimeout(500)
   check((await rowOf('Temperature accuracy').count()) === 1, 'clearing the search shows the hierarchy, opened down to the selected item')

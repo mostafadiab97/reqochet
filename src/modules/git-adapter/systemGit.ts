@@ -3,6 +3,7 @@
 // Every call passes arguments as an array (no shell), so file names and messages are never interpreted.
 import { execFile, spawn } from 'node:child_process'
 import { mkdtemp, rm, rmdir } from 'node:fs/promises'
+import { removeFile } from '../safe-files'
 import { tmpdir } from 'node:os'
 import { dirname, join, normalize } from 'node:path'
 import type { GitInfo } from '../../shared/api'
@@ -225,6 +226,12 @@ export function parseOverwrittenFiles(stderr: string): string[] {
 /** Markers in push errors the workspace turns into texts (core messages come from shared/text there). */
 export const PUSH_NO_UPSTREAM = 'reqochet:push-no-upstream'
 export const PUSH_OTHER_NAME = 'reqochet:push-other-name'
+/** A remote name from .git/config that Git would read as an option (starts with "-"): never put on a command line (1.0.2, SEC-WP3-04). */
+export const PUSH_BAD_REMOTE = 'reqochet:push-bad-remote'
+const checkRemote = (remote: string, args: string[]): string => {
+  if (remote.startsWith('-') || /[\s\0]/.test(remote)) throw new GitError(`${PUSH_BAD_REMOTE}\n${remote}`, args, null, '', '')
+  return remote
+}
 
 export function createSystemGitAdapter(run: CommandRunner = defaultRunner): GitAdapter {
   const git = (root: string, args: string[], timeoutMs = LOCAL_TIMEOUT, extra: Omit<RunOptions, 'timeoutMs'> = {}): Promise<string> =>
@@ -275,7 +282,10 @@ export function createSystemGitAdapter(run: CommandRunner = defaultRunner): GitA
 
     async status(root, pathspec) {
       const out = await git(root, ['status', '--porcelain=v2', '--branch', '-z', '--untracked-files=all', '--', pathspec])
-      return parseStatusV2(out)
+      const st = parseStatusV2(out)
+      // an untracked `.tmp` file is a save in progress or the only copy left after a failed rename: not a change to
+      // discard, switch away or commit (review 1.0.2, CR102-03 — Discard deleted it)
+      return { ...st, changes: st.changes.filter((c) => !(c.kind === 'added' && c.path.endsWith('.tmp') && !c.staged)) }
     },
 
     async remotes(root) {
@@ -291,6 +301,10 @@ export function createSystemGitAdapter(run: CommandRunner = defaultRunner): GitA
       // other files the user may have staged for their own commits stay untouched.
       // thousands of files (a first commit, an import) with a virus scanner: the bulk limit, not 30 s
       await git(root, ['add', '--all', '--', pathspec], BULK_TIMEOUT)
+      // a `.tmp` file is a save in progress or the copy kept after a failed rename: never committed (1.0.2, A-07); taken
+      // out again by name (paths are literal here, so an exclude pattern cannot be used)
+      const added = (await git(root, ['diff', '--cached', '--name-only', '-z', '--diff-filter=A', '--', pathspec])).split('\0').filter((f) => f.endsWith('.tmp'))
+      if (added.length > 0) await git(root, ['reset', '-q', '--pathspec-from-file=-', '--pathspec-file-nul'], BULK_TIMEOUT, { input: nulList(added) })
       await git(root, ['commit', '--quiet', '-m', message, '--only', '--', pathspec], BULK_TIMEOUT)
       return (await git(root, ['rev-parse', 'HEAD'])).trim()
     },
@@ -426,8 +440,8 @@ export function createSystemGitAdapter(run: CommandRunner = defaultRunner): GitA
 
     async push(root, setUpstream) {
       if (setUpstream) {
-        await git(root, ['push', '--quiet', '-u', setUpstream.remote, `HEAD:refs/heads/${setUpstream.branch}`], NETWORK_TIMEOUT)
-        return
+        await git(root, ['push', '--quiet', '-u', checkRemote(setUpstream.remote, ['push']), `HEAD:refs/heads/${setUpstream.branch}`], NETWORK_TIMEOUT)
+        return setUpstream.remote
       }
       // name exactly what is sent — this branch to its upstream branch, never with "+" — so the user's Git settings
       // (push.default=matching, a "+" push rule) can never push other branches or force a push
@@ -443,7 +457,15 @@ export function createSystemGitAdapter(run: CommandRunner = defaultRunner): GitA
       if (remote === upstreamRemote && merge && merge !== `refs/heads/${branch}`) {
         throw new GitError(`${PUSH_OTHER_NAME}\n${branch}\n${merge.replace(/^refs\/heads\//, '')}`, ['push'], null, '', '')
       }
-      await git(root, ['push', '--quiet', remote, `HEAD:refs/heads/${branch}`], NETWORK_TIMEOUT)
+      await git(root, ['push', '--quiet', checkRemote(remote, ['push']), `HEAD:refs/heads/${branch}`], NETWORK_TIMEOUT)
+      // where the branch went: baselines follow it (a fork setup pushes elsewhere than it pulls from — 1.0.2, B-06)
+      return remote
+    },
+
+    async pushRemote(root) {
+      const out = await git(root, ['for-each-ref', '--format=%(HEAD)%00%(push:remotename)%00%(upstream:remotename)', 'refs/heads/'])
+      const [, push = '', upstream = ''] = out.split('\n').find((r) => r.startsWith('*\u0000'))?.split('\u0000') ?? []
+      return push || upstream || null
     },
 
     async log(root, path, limit = 200): Promise<CommitInfo[]> {
@@ -498,11 +520,14 @@ export function createSystemGitAdapter(run: CommandRunner = defaultRunner): GitA
     async pushBaselines(root, remote, names) {
       // one by one: a name a colleague already pushed must not block the others
       const refused: string[] = []
+      checkRemote(remote, ['push'])
       for (const n of names) {
         try {
           await git(root, ['push', '--quiet', remote, `refs/tags/baseline/${n}:refs/tags/baseline/${n}`], NETWORK_TIMEOUT)
         } catch (e) {
-          if (/rejected|already exists|does not match/i.test(String((e as Error).message))) refused.push(n)
+          // only "the remote has this name already" means "name taken"; a hook or a protected-tags rule that refuses is
+          // a different problem, reported as such (1.0.2, A-25)
+          if (/already exists/i.test(String((e as Error).message))) refused.push(n)
           else throw e
         }
       }
@@ -627,7 +652,8 @@ export function createSystemGitAdapter(run: CommandRunner = defaultRunner): GitA
       }
       if (!to) {
         const untracked = (await git(root, ['ls-files', '--others', '--exclude-standard', '-z', '--', pathspec])).split('\0').filter(Boolean)
-        for (const p of untracked) out.push({ status: 'A', path: p, oldOid: null, newOid: null })
+        // untracked `.tmp` files are left out, as in status (review 1.0.2, CR102-15)
+        for (const p of untracked) if (!p.endsWith('.tmp')) out.push({ status: 'A', path: p, oldOid: null, newOid: null })
       }
       return out
     },
@@ -760,7 +786,7 @@ export function createSystemGitAdapter(run: CommandRunner = defaultRunner): GitA
       for (const part of chunks(restore)) await git(root, ['restore', '--source=HEAD', '--staged', '--worktree', '--', ...part], BULK_TIMEOUT)
       const stagedNew = remove.filter((p) => tracked.has(p))
       for (const part of chunks(stagedNew)) await git(root, ['rm', '--cached', '--quiet', '--', ...part], BULK_TIMEOUT)
-      for (const p of remove) await rm(join(root, p), { force: true })
+      for (const p of remove) await removeFile(join(root, p)) // retried while Windows holds the file (1.0.2, A-13)
       // a folder the discard left empty goes too (a discarded new document stayed in the list)
       // deepest folders first, one level at a time, so a parent is tried only after all its emptied children went;
       // rmdir alone: it refuses a folder that still holds anything, so no listing is needed (listing the parent after

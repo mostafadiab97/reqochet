@@ -4,7 +4,8 @@
 //   shape.buttonRadius     -> --rm-shape-button-radius
 //   modes.dark.primary     -> --rm-color-primary (when dark mode is active)
 import { useEffect, useState } from 'react'
-import type { ThemeConfig } from '../../../shared/api'
+import type { LoadedTheme, ThemeConfig } from '../../../shared/api'
+import { DEFAULT_THEME } from '../../../shared/defaultTheme'
 import { tokensToCssVars } from './tokens'
 
 export type ThemeMode = 'system' | 'light' | 'dark' | 'ember'
@@ -54,4 +55,9 @@ export function useEffectiveMode(mode: ThemeMode): Shown {
     return () => mq.removeEventListener('change', onChange)
   }, [])
   return mode === 'system' ? system : mode
+}
+
+/** The loaded theme, or the built-in one when loading fails — the splash never waits for ever (1.0.2, CRA-12). */
+export function themeOrBuiltIn(loading: Promise<LoadedTheme>): Promise<LoadedTheme> {
+  return loading.catch((e: unknown): LoadedTheme => ({ config: DEFAULT_THEME, logoDataUrl: '', source: 'default', warnings: [String(e instanceof Error ? e.message : e)] }))
 }

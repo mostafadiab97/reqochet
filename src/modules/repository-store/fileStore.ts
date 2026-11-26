@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { documentOfPath } from '../../shared/domain'
-import { mkdir, readdir, readFile, lstat, stat, writeFile, rename, rmdir } from 'node:fs/promises'
+import { mkdir, readdir, readFile, lstat, stat, writeFile, rmdir } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join } from 'node:path'
 import { generateId, ITEM_FILE_EXTENSION, parseItemFile, serializeItem, type FieldValue, type Item } from '../items'
 import { isMap, isSeq, parseDocument, type YAMLMap, type YAMLSeq } from 'yaml'
@@ -60,7 +60,7 @@ const revisionOf = (content: string): string => createHash('sha1').update(conten
 const exists = async (p: string): Promise<boolean> => (await stat(p).catch(() => null)) !== null
 
 /** Temporary file + rename, retried while Windows briefly locks the file (see modules/safe-files). */
-const atomicWrite = (file: string, content: string): Promise<void> => writeFileAtomic(file, content)
+const atomicWrite = (file: string, content: string, flush = true): Promise<void> => writeFileAtomic(file, content, { flush })
 
 /** Runs `fn` over `inputs` with at most `limit` in flight (keeps 50k file reads from exhausting handles). */
 async function mapLimit<T, R>(inputs: T[], limit: number, fn: (t: T) => Promise<R>): Promise<R[]> {
@@ -123,6 +123,10 @@ export function createFileRepositoryStore(defaultSchemaFile: string): Repository
     const readAt = async (rel: string): Promise<{ ok: true; item: Item; revision: string } | { ok: false; error: string; revision: string } | null> => {
       let content: string
       try {
+        // the folder listing's checks here too: no links followed, nothing over 5 MB read whole (1.0.2, SEC-WP3-02)
+        const info = await lstat(join(folder, rel))
+        if (!info.isFile()) return { ok: false, error: T.coreMsg.notPlainFile, revision: '' }
+        if (info.size > MAX_ITEM_FILE_BYTES) return { ok: false, error: T.coreMsg.fileTooLarge(MAX_ITEM_FILE_BYTES / 1_000_000), revision: '' }
         content = await readFile(join(folder, rel), 'utf8')
       } catch (e) {
         if ((e as NodeJS.ErrnoException).code === 'ENOENT') return null
@@ -242,7 +246,7 @@ export function createFileRepositoryStore(defaultSchemaFile: string): Repository
         })
         const text = doc.toString({ lineWidth: 0 })
         // a template field value this version cannot read was there before and is kept as written: not a reason to refuse
-        const own = parseSchema(text).problems.filter((p) => /^(itemTypes|linkTypes)/.test(p.path) && !p.path.includes('.template.fields.'))
+        const own = parseSchema(text).problems.filter((p) => p.severity !== 'warning' && /^(itemTypes|linkTypes)/.test(p.path) && !p.path.includes('.template.fields.'))
         if (own.length > 0) throw new Error(own.map((p) => `${p.path}: ${p.message}`).join(' '))
         await atomicWrite(schemaFile, text)
       },
@@ -407,7 +411,8 @@ export function createFileRepositoryStore(defaultSchemaFile: string): Repository
         if (current && !current.ok) throw new Error(`${basename(file)} cannot be read (${current.error}); fix it before saving over it.`)
         await mkdir(dirname(file), { recursive: true })
         const content = serializeItem(item, schema)
-        await atomicWrite(file, content)
+        // flushed only for a single save (the editor's), not for bulk writes (import, change many…) — see writeFileAtomic
+        await atomicWrite(file, content, options.flush === true)
         return revisionOf(content)
       },
 
@@ -456,7 +461,7 @@ export function createFileRepositoryStore(defaultSchemaFile: string): Repository
         if (!empty) throw new Error('both-folders')
         await rmdir(join(folder, dst))
       }
-      await rename(join(folder, src), join(folder, dst))
+      await renameFile(join(folder, src), join(folder, dst)) // retried while Windows holds it (1.0.2, A-13)
       return { from: `${REQUIREMENTS_FOLDER}/${src}`, to: `${REQUIREMENTS_FOLDER}/${dst}` }
     },
 

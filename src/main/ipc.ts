@@ -5,7 +5,8 @@ import { applyWindowMode } from './windowIcon'
 import { htmlToPdf } from './pdf'
 import { app, BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
 import { readFileSync } from 'node:fs'
-import { readdir, readFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
+import { folderState } from './folderState'
 import { basename, dirname, join } from 'node:path'
 import { Channels, type AppInfo, type ExportFormat, type ExportResult, type InvokeMethod, type ReqochetApi } from '../shared/api'
 import { runDataBenchmark } from '../modules/sample-data'
@@ -61,7 +62,9 @@ export function registerIpc(services: Services, paths: Paths): void {
   }
   const saveExport = async (e: IpcMainInvokeEvent, name: string, format: ExportFormat, build: () => Promise<{ content: string | Uint8Array; count: number }>): Promise<ExportResult> => {
     try {
+      const built = performance.now()
       const { content, count } = await build()
+      const buildMs = Math.round(performance.now() - built)
       const win = BrowserWindow.fromWebContents(e.sender)
       const ext = format === 'markdown' ? 'md' : format
       const filter = { markdown: { name: 'Markdown', extensions: ['md'] }, csv: { name: 'CSV (Excel)', extensions: ['csv'] }, xlsx: { name: 'Excel workbook', extensions: ['xlsx'] }, reqif: { name: 'ReqIF', extensions: ['reqif'] }, docx: { name: 'Word', extensions: ['docx'] }, pdf: { name: 'PDF', extensions: ['pdf'] }, html: { name: 'HTML', extensions: ['html'] } }[format]
@@ -69,7 +72,12 @@ export function registerIpc(services: Services, paths: Paths): void {
       const r = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts)
       if (r.canceled || !r.filePath) return { ok: false, canceled: true }
       // PDF (0.25.0): the core made print HTML; a hidden window prints it
-      await writeFileAtomic(r.filePath, format === 'pdf' && typeof content === 'string' ? await htmlToPdf(content) : content)
+      const chosen = performance.now()
+      const bytes = format === 'pdf' && typeof content === 'string' ? await htmlToPdf(content, (line) => log.info(line)) : content
+      const converted = performance.now()
+      await writeFileAtomic(r.filePath, bytes)
+      // 1.0.3: where the time goes (the owner's PDF export took ~65 s after choosing the file)
+      log.info(`Export ${format}: built in ${buildMs} ms; after choosing the file: converted in ${Math.round(converted - chosen)} ms, written in ${Math.round(performance.now() - converted)} ms`)
       await writeFileAtomic(exportSettings, JSON.stringify({ folder: dirname(r.filePath) }), { mkdir: true }).catch(() => {})
       log.info(`Exported ${count} entries to ${r.filePath}`)
       return { ok: true, path: r.filePath, count }
@@ -354,12 +362,15 @@ export function registerIpc(services: Services, paths: Paths): void {
         for (;;) {
           const folder = await openDialog(e, { title: T.importDialog.folderTitle, properties: ['openDirectory', 'createDirectory', 'promptToCreate'] })
           if (!folder) return { ok: false, canceled: true }
-          const inside = await readdir(folder).catch(() => [] as string[])
+          const state = await folderState(folder)
           // the first document is named after the file ("Brake spec.xlsx" → "Brake spec")
           const named = basename(file.path).replace(/\.[^.]+$/, '').trim()
-          if (inside.length === 0) return { ok: true, info: await ws.createProject(folder, isDocumentName(named) ? named : FIRST_DOCUMENT), file }
+          if (state.kind === 'empty') return { ok: true, info: await ws.createProject(folder, isDocumentName(named) ? named : FIRST_DOCUMENT), file }
           const win = BrowserWindow.fromWebContents(e.sender)
-          const opts = { type: 'warning' as const, title: T.importDialog.titleNew, message: T.importMsg.notEmpty, detail: T.importMsg.notEmptyDetail(folder), buttons: [T.importDialog.chooseAnother, T.common.cancel], defaultId: 0, cancelId: 1, noLink: true }
+          // full, or not readable (1.0.2, CRA-15: an unreadable folder used to count as empty)
+          const detail = state.kind === 'full' ? T.importMsg.notEmptyDetail(folder) : T.importMsg.notReadableDetail(folder, state.error)
+          const message = state.kind === 'full' ? T.importMsg.notEmpty : T.importMsg.notReadable
+          const opts = { type: 'warning' as const, title: T.importDialog.titleNew, message, detail, buttons: [T.importDialog.chooseAnother, T.common.cancel], defaultId: 0, cancelId: 1, noLink: true }
           const answer = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts)
           if (answer.response !== 0) return { ok: false, canceled: true }
         }

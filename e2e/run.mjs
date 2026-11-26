@@ -2,9 +2,10 @@
 // profile, and prints one summary. A failing scenario does not stop the others.
 //   npm run build && npm run test:e2e [-- name ...]     (e.g. npm run test:e2e -- fixes)
 import { spawn } from 'node:child_process'
-import { readdirSync, rmSync } from 'node:fs'
+import { readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { outDir, root } from './harness.mjs'
+import { a11yDir, outDir, root } from './harness.mjs'
+import { broken, report, resetA11y } from './a11y.mjs'
 
 const dir = join(root, 'e2e', 'scenarios')
 const wanted = process.argv.slice(2)
@@ -14,6 +15,8 @@ const all = readdirSync(dir)
 const PARALLEL = Number(process.env.E2E_PARALLEL ?? 2)
 // a full run starts with no screenshots of earlier runs, so a review never looks at stale pictures
 if (wanted.length === 0) for (const f of readdirSync(outDir)) if (f.endsWith('.png')) rmSync(join(outDir, f), { force: true })
+if (wanted.length === 0) resetA11y(a11yDir)
+const startedAt = Date.now()
 
 // Electron downloads its program on first use. Do that once, here: two scenarios starting at the same moment
 // would both try to unpack it, and Windows refuses the second (the file is in use).
@@ -49,8 +52,15 @@ await Promise.all(
     while (queue.length) await run(queue.shift())
   })
 )
+writeFileSync(join(outDir, 'a11y.md'), report(a11yDir))
+// strict since 1.0.2: an accessibility problem on any screen of this run fails it (A11Y_STRICT=0: report only)
+const a11y = process.env.A11Y === '0' || process.env.A11Y_STRICT === '0' ? [] : broken(a11yDir, startedAt)
+console.log(`\nAccessibility report: e2e/out/a11y.md${a11y.length ? ` — ${a11y.length} problem(s):` : ''}`)
+for (const line of a11y) console.log(`  ✗ a11y ${line}`)
+if (a11y.length && process.env.GITHUB_ACTIONS) console.log(`::error title=Accessibility::${a11y.length} problem(s) — e2e/out/a11y.md; ${a11y.slice(0, 5).join('; ').replace(/::/g, ': :')}`)
 console.log('\nE2E summary:')
 for (const r of results) console.log(`  ${r.ok ? '✓' : '✗'} ${r.file}`)
 const failed = results.filter((r) => !r.ok).length
 console.log(failed === 0 ? 'All E2E scenarios passed' : `${failed} scenario(s) failed`)
-process.exit(failed === 0 ? 0 : 1)
+if (a11y.length) console.log('Accessibility check failed (strict)')
+process.exit(failed === 0 && a11y.length === 0 ? 0 : 1)

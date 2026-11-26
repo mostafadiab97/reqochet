@@ -7,9 +7,11 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { _electron as electron } from 'playwright-core'
+import { checkA11y } from './a11y.mjs'
 
 export const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 export const outDir = join(root, 'e2e', 'out')
+export const a11yDir = join(outDir, 'a11y')
 mkdirSync(outDir, { recursive: true })
 
 /** Temporary folders of this scenario: removed when it passes (kept for a look when it fails). */
@@ -69,7 +71,11 @@ export async function launch({ openPath, userData = temp('user'), prefix = '' } 
     get failures() {
       return failures
     },
-    shot: (name) => win.screenshot({ path: join(outDir, `${name}.png`) }),
+    // every screenshot is also checked for accessibility (W-04; report-only, see e2e/a11y.mjs)
+    shot: async (name) => {
+      await win.screenshot({ path: join(outDir, `${name}.png`) })
+      await checkA11y(win, name, a11yDir)
+    },
     /** Open dialogs (file / folder pickers): answer with these paths, one per dialog, in order. */
     openFiles: (...paths) =>
       app.evaluate(({ dialog }, list) => {

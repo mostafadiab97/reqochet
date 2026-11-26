@@ -5,7 +5,7 @@ import { T } from '../../shared/text'
 import type { ExportFormat, ExportItemsRequest } from '../../shared/api'
 import { compareToCsv, compareToMarkdown, compareToSheet, itemsToCsv, itemsToDocx, itemsToHtml, itemsToMarkdown, itemsToSheet, writeReqif, writeXlsx, type DocumentData, type ExportColumn, type ExportItem, type TraceRow } from '../import-export'
 import { queryAll, withRequired, type WorkspaceContext } from './context'
-import type { createCompare } from './compare'
+import { readChecked, type createCompare } from './compare'
 import { depthOf, type StructureOps } from './structure'
 
 export function createExportOps(ctx: WorkspaceContext, structure: StructureOps, compare: ReturnType<typeof createCompare>) {
@@ -93,12 +93,26 @@ export function createExportOps(ctx: WorkspaceContext, structure: StructureOps, 
       }
       if (request.format === 'reqif') {
         // objects that came from ReqIF keep their identifier, so the other tool recognises them
+        // (1.0.2, PW-08: the header is not in the index; reading and parsing all 50,000 files took most of 19 s — now each
+        // file is only read as text, and parsed only when it mentions source-id, i.e. came from ReqIF)
         const sourceIds = new Map<string, string>()
-        for (let i = 0; i < rows.length; i += 32) {
+        const live = !s.repo.root.includes('\u0000') // not an old version (its session root is "<root>\0version\0<commit>")
+        for (let i = 0; i < rows.length; i += 64) {
           await Promise.all(
-            rows.slice(i, i + 32).map(async (r) => {
-              const f = await s.repo.readItem(r.item.id)
-              const src = f?.ok ? f.item.extra['source-id'] : undefined
+            rows.slice(i, i + 64).map(async (r) => {
+              if (!live) {
+                // an old version's files come from Git through its own store, not from the folder
+                const f = await s.repo.readItem(r.item.id)
+                const src = f?.ok ? f.item.extra['source-id'] : undefined
+                if (typeof src === 'string') sourceIds.set(r.item.id, src)
+                return
+              }
+              // a plain file of at most 5 MB, links not followed — the checks of readAt (review 1.0.2, CR102-07 /
+              // SEC-102-04); gone, too large or a link: exported without a source ID
+              const raw = await readChecked(join(s.repo.folder, r.item.path))
+              if (raw === null || !raw.includes('source-id')) return
+              const f = await s.repo.readItemFile(r.item.path)
+              const src = f.ok ? f.item.extra['source-id'] : undefined
               if (typeof src === 'string') sourceIds.set(r.item.id, src)
             })
           )

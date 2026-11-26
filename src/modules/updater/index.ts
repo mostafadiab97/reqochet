@@ -25,4 +25,4 @@ export interface UpdateService {
 }
 
 export { createGithubUpdater }
-export { checkInstaller, compareVersions, isOwnReleaseUrl, newerRelease, OLDEST_REVERT_TARGET, parseReleases, releaseTagOf, revertTargets, type ReleaseInfo } from './versions'
+export { checkInstaller, compareVersions, isOwnReleaseUrl, listedSize, MAX_CHECKSUMS_BYTES, MAX_INSTALLER_BYTES, newerRelease, OLDEST_REVERT_TARGET, parseReleases, readCapped, releaseTagOf, revertTargets, type ReleaseInfo } from './versions'

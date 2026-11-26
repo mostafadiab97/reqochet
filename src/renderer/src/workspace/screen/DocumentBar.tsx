@@ -114,6 +114,7 @@ export function DocumentBar({ newRef, ...props }: {
         label={T.documents.button(current === ALL_DOCUMENTS ? T.documents.all(info.itemCount) : label(current), countOf(current))}
         title={T.documents.pickerTooltip}
         className="doc-btn"
+        nameFromContent
         menuLabel={T.documents.menuLabel}
         onButtonKeyDown={(e) => {
           if (e.key === 'F2' && canRename) {
@@ -139,6 +140,7 @@ export function DocumentBar({ newRef, ...props }: {
           {current === ALL_DOCUMENTS ? T.documents.menuLabel : label(current)}
         </span>
         <span className="doc-btn__count">{T.documents.countShort(countOf(current))}</span>
+        <span className="sr-only">{T.documents.countUnit}</span>
         <Icon name="chevronDown" size={12} />
       </MenuButton>
       {/* 0.23.0 test 2: name box, questions and notes open in a small panel under the document button,

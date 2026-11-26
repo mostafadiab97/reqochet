@@ -8,7 +8,16 @@ import { T } from '../shared/text'
  * Prints an exported HTML document to PDF (0.25.0): a hidden window without scripts or a preload loads the file
  * from a temporary folder and Chromium prints it (A4, page numbers in the footer). The folder is removed afterwards.
  */
-export async function htmlToPdf(html: string): Promise<Uint8Array> {
+export async function htmlToPdf(html: string, report?: (line: string) => void): Promise<Uint8Array> {
+  // 1.0.3 (the owner's PC took ~65 s for 10,005 entries, the Windows CI runner ~9 s): each phase is timed into the log
+  const start = performance.now()
+  const phases: string[] = []
+  let mark = start
+  const phase = (name: string): void => {
+    const now = performance.now()
+    phases.push(`${name} ${Math.round(now - mark)} ms`)
+    mark = now
+  }
   const dir = await mkdtemp(join(tmpdir(), 'reqochet-pdf-'))
   const file = join(dir, 'document.html')
   const win = new BrowserWindow({ show: false, webPreferences: { javascript: false, sandbox: true, contextIsolation: true, nodeIntegration: false } })
@@ -16,8 +25,11 @@ export async function htmlToPdf(html: string): Promise<Uint8Array> {
     // nothing may navigate or open windows from here; links in the PDF stay links
     win.webContents.on('will-navigate', (e) => e.preventDefault())
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+    phase('window')
     await writeFile(file, html, 'utf8')
+    phase(`write HTML (${(Buffer.byteLength(html) / 1e6).toFixed(1)} MB)`)
     await withTimeout(win.loadFile(file))
+    phase('load')
     // the page-number spans are Chromium's; the words around them are escaped
     const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     // eslint-disable-next-line no-control-regex -- the two markers split the translated words
@@ -30,10 +42,13 @@ export async function htmlToPdf(html: string): Promise<Uint8Array> {
       footerTemplate: `<div style="font-size:8px;width:100%;text-align:center;color:#566070">${footer}</div>`,
       margins: { top: 0.6, bottom: 0.7, left: 0.6, right: 0.6 }
     }))
+    phase(`print (${(pdf.byteLength / 1e6).toFixed(1)} MB PDF)`)
     return new Uint8Array(pdf)
   } finally {
     if (!win.isDestroyed()) win.destroy()
     await rm(dir, { recursive: true, force: true }).catch(() => undefined)
+    phase('clean up')
+    report?.(`PDF: ${phases.join(', ')}; total ${Math.round(performance.now() - start)} ms`)
   }
 }
 

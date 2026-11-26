@@ -5,6 +5,7 @@
 import type { CoverageRule, IndexedItem, ItemIssue, ItemQuery, LinkRef, QueryResult } from '../../shared/domain'
 import type { RequirementsRepo } from '../repository-store'
 import { createSqliteIndexCache, preview } from './sqliteIndex'
+export type { SqliteIndexOptions } from './sqliteIndex'
 
 export type { IndexedItem, SortKey, ItemQuery, QueryResult, LinkRef } from '../../shared/domain'
 
@@ -27,6 +28,10 @@ export interface IndexCache {
   /** Throws the cache away and re-reads every file. */
   rebuild(repo: RequirementsRepo): Promise<SyncStats>
   query(q: ItemQuery): QueryResult
+  /** The rows matching a query's filters (sort, limit and offset ignored): row number and ID only (1.0.2: sort by outline number). */
+  matching(q: ItemQuery): { rid: number; id: string }[]
+  /** Full rows by row number, in the order given (missing ones left out); shaped like `query` with brief/textUpTo. */
+  rows(rids: number[], shape?: Pick<ItemQuery, 'brief' | 'textUpTo'>): IndexedItem[]
   get(id: string): IndexedItem | undefined
   /** Every file that holds this ID (more than one = a duplicate, e.g. a copied file). */
   pathsOf(id: string): string[]

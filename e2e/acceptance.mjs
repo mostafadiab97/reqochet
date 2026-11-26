@@ -11,7 +11,7 @@
 // 4. Pushes one real commit to a scratch branch, checks it arrived, deletes the branch.
 // Every action is listed, numbered, in the summary — nothing happens that is not written down there.
 import { execFileSync, spawnSync } from 'node:child_process'
-import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
@@ -28,6 +28,8 @@ const sandbox = arg('sandbox')
 const pushUrl = arg('push-url')
 const branch = arg('branch')
 const version = JSON.parse(readFileSync('package.json', 'utf8')).version
+// the Windows file version has four numbers only: a test build 1.0.2-next.1 reads 1.0.2.0 on disk (1.0.2)
+const fileVersion = version.split('-')[0]
 
 const done = []
 let failed = false
@@ -60,18 +62,24 @@ const killApp = () => {
   spawnSync('taskkill', ['/IM', `${PRODUCT}.exe`, '/F'], { stdio: 'ignore' })
   spawnSync('taskkill', ['/IM', 'ReqMan.exe', '/F'], { stdio: 'ignore' })
 }
-const runInstaller = (file) => execFileSync(file, ['/S'], { stdio: 'ignore', timeout: 300_000 })
+// the installed app and the installers get no CI token in their environment (1.0.2, SEC-WP3-03). The one place the token
+// still reaches the app is the push test's temporary repository: its `origin` URL carries it, because the real push
+// needs it; that folder is deleted at the end of the step (review 1.0.2, SEC-102-03)
+const appEnv = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(GH_TOKEN|GITHUB_TOKEN|GH_ENTERPRISE_TOKEN|ACTIONS_RUNTIME_TOKEN|ACTIONS_ID_TOKEN_REQUEST_TOKEN)$/.test(k)))
+const runInstaller = (file) => execFileSync(file, ['/S'], { stdio: 'ignore', timeout: 300_000, env: appEnv })
+// a test build "1.0.2-next.1" (public next branch, 1.0.2) is newer than 1.0.1 and older than 1.0.2
 const newer = (a, b) => {
-  const pa = a.split('.').map(Number)
-  const pb = b.split('.').map(Number)
+  const core = (v) => v.split('-')[0].split('.').map((x) => Number.parseInt(x, 10) || 0)
+  const pa = core(a)
+  const pb = core(b)
   for (let i = 0; i < 3; i++) if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pa[i] ?? 0) > (pb[i] ?? 0)
-  return false
+  return !a.includes('-') && b.includes('-')
 }
 
 /** Starts the installed app; `openPath` answers the folder picker. */
 async function launchInstalled(openPath, executablePath = exe) {
   const userData = mkdtempSync(join(tmpdir(), 'reqochet-accept-'))
-  const app = await electron.launch({ executablePath, args: [`--user-data-dir=${userData}`] })
+  const app = await electron.launch({ executablePath, args: [`--user-data-dir=${userData}`], env: appEnv })
   if (openPath) await app.evaluate(({ dialog }, p) => void (dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [p] })), openPath)
   const win = await app.firstWindow()
   await win.setViewportSize({ width: 1400, height: 860 })
@@ -85,7 +93,7 @@ async function step1Install() {
   if (!previous || !prevVersion || !newer(version, prevVersion)) {
     runInstaller(installer)
     const v = installedVersion()
-    if (v?.startsWith(version)) did(`Installed this build (${version}) silently into ${installDir}${prevVersion ? ` — no update test: it is not newer than the latest release ${prevVersion}` : ''}.`)
+    if (v?.startsWith(fileVersion)) did(`Installed this build (${version}) silently into ${installDir}${prevVersion ? ` — no update test: it is not newer than the latest release ${prevVersion}` : ''}.`)
     else fail(`Installing ${basename(installer)} — the installed version is ${v ?? 'missing'}.`)
     return
   }
@@ -111,8 +119,13 @@ async function step1Install() {
     res.writeHead(200, { 'Content-Length': statSync(file).size })
     res.end(readFileSync(file))
   })
-  await new Promise((r) => server.listen(8765, '127.0.0.1', r))
-  writeFileSync(join(prevDir, 'resources', 'app-update.yml'), 'provider: generic\nurl: http://127.0.0.1:8765/\nupdaterCacheDirName: reqochet-updater\n')
+  // any free port (1.0.2, CR3-24: a fixed port failed when something else held it), and a clear error if it fails
+  await new Promise((r, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', r)
+  })
+  const port = server.address().port
+  writeFileSync(join(prevDir, 'resources', 'app-update.yml'), `provider: generic\nurl: http://127.0.0.1:${port}/\nupdaterCacheDirName: reqochet-updater\n`)
   did('Pointed the installed copy at a local update feed with this build (instead of GitHub Releases).')
   const { app, win } = await launchInstalled(undefined, prevExe)
   let status = null
@@ -129,7 +142,7 @@ async function step1Install() {
   did(`Started ${prevVersion}: it found and downloaded ${status.version}.`)
   await win.evaluate(() => (window.reqochet ?? window.reqman).installUpdate()).catch(() => {})
   let v = null
-  for (let i = 0; i < 180 && !v?.startsWith(version); i++) {
+  for (let i = 0; i < 180 && !v?.startsWith(fileVersion); i++) {
     await sleep(1000)
     v = installedVersion()
   }
@@ -138,7 +151,7 @@ async function step1Install() {
   for (let i = 0; i < 30 && fromLegacy && process.env.CI && !existsSync(join(appData, PRODUCT, 'moved-from-reqman.txt')); i++) await sleep(1000)
   killApp() // the updater restarts the app after installing
   server.close()
-  if (v?.startsWith(version)) did(`Clicked "restart to update": the installed app is now ${PRODUCT} ${version}.`)
+  if (v?.startsWith(fileVersion)) did(`Clicked "restart to update": the installed app is now ${PRODUCT} ${version}.`)
   else fail(`After "restart to update" the installed version is ${v ?? 'missing'}, expected ${version}.`)
   if (fromLegacy) {
     // the switch: ReqMan removed by the new installer; settings moved by the new app's first (auto-restarted) start
@@ -259,6 +272,8 @@ async function step4Push() {
     if (del.status === 0) did(`Deleted the scratch branch "${branch}" on GitHub again.`)
     else if (/remote ref does not exist/.test(del.stderr)) did(`Scratch branch "${branch}" was not on GitHub — nothing to delete.`)
     else fail(`Could not delete the scratch branch "${branch}": ${secret(del.stderr)}`)
+    // its .git/config holds the token in the origin URL
+    rmSync(repo, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 })
   }
 }
 

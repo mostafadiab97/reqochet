@@ -319,7 +319,7 @@ export function planImport(input: ImportPlanInput): ImportPlan {
         }
       }
     }
-    // "Linked from" in ReqMan's own format: "verified by REQ-…; refined by REQ-…" (stored in the other items)
+    // "Linked from" in reqochet's own format: "verified by REQ-…; refined by REQ-…" (stored in the other items)
     for (const c of colsOf((t) => t === 'linkedFrom')) {
       for (const part of cell(d.r, c).split(/[;\n]+/).map((x) => x.trim()).filter(Boolean)) {
         const m = /^(.*?)\s+(\S+)$/.exec(part)

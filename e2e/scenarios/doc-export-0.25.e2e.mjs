@@ -1,5 +1,5 @@
 // 0.25.0: export the requirements as a Word document, a PDF and a web page from the Export dialog.
-import { copyFileSync, readFileSync } from 'node:fs'
+import { copyFileSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import JSZip from 'jszip'
 import { gitRepo, launch, more, newItem, outDir, scenario, temp } from '../harness.mjs'
@@ -51,6 +51,11 @@ await scenario('E2E document export', async (ctx) => {
   await notice('spec.pdf').waitFor({ timeout: 30_000 })
   const bytes = readFileSync(pdf)
   check(bytes.subarray(0, 5).toString('latin1') === '%PDF-' && bytes.length > 2000, `a real PDF file (${bytes.length} bytes)`)
+  // 1.0.3: the log says where a PDF export's time went (the owner's PC took ~65 s for 10,005 entries)
+  const logs = readdirSync(t.userData, { recursive: true }).filter((f) => String(f).endsWith('.log'))
+  const logText = logs.map((f) => readFileSync(join(t.userData, String(f)), 'utf8')).join('\n')
+  const timing = /PDF: window \d+ ms, write HTML .* load \d+ ms, print .* total \d+ ms/.exec(logText)?.[0]
+  check(Boolean(timing) && /Export pdf: built in \d+ ms/.test(logText), `the log times each PDF phase (${timing ?? `no line in ${logs.length} log files`})`)
 
   console.log('Web page: one file with the items')
   await more(win, 'Export…')
